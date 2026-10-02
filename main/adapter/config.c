@@ -20,7 +20,11 @@
 struct config config;
 struct hw_config hw_config = {
     .external_adapter = 0,
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    .hotplug = 1, /* vendor fw (v1.9 based) used hotplug for DC */
+#else
     .hotplug = 0,
+#endif
     .hw1_ports_led_pins = {2, 4, 12, 15},
     .led_flash_duty_cycle = 0x80000,
     .led_flash_hz = {2, 4, 8},
@@ -39,14 +43,22 @@ struct hw_config hw_config = {
     .ports_sense_output_od = 0,
     .ports_sense_output_polarity = 0,
     .ports_sense_p3_p4_as_output = 0,
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    .power_pin_is_hold = 1, /* vendor fw holds GPIO13, never pulses */
+#else
     .power_pin_is_hold = 0,
+#endif
     .power_pin_od = 0,
     .power_pin_polarity = 0,
     .power_pin_pulse_ms = 20,
     .reset_pin_od = 1,
     .reset_pin_polarity = 0,
     .reset_pin_pulse_ms = 500,
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    .sw_io0_hold_thres_ms = {3000, 6000, 10000}, /* vendor fw thresholds */
+#else
     .sw_io0_hold_thres_ms = {1000, 3000, 6000},
+#endif
     .ps_ctrl_colors = {
         0xFF0000, /* Blue */
         0x0000FF, /* Red */

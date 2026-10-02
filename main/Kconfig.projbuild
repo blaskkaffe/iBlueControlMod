@@ -6,6 +6,18 @@ menu "BlueRetro"
         help
             Select this to enable HW2 features like port detection.
 
+    config BLUERETRO_HW_IBLUECONTROLMOD
+        bool "Target iBlueControlMod (internal Dreamcast mod) pinout"
+        depends on BLUERETRO_HW2
+        default n
+        help
+            Use the GPIO assignment of the iBlueControlMod board
+            (reverse engineered from vendor firmware SEGA_DC_24V01):
+            boot/pair button on GPIO16, status LED on GPIO13/GPIO14,
+            port LEDs 15/4/2/12, port sense P1=36 P2=35 P3=32 P4=33,
+            GPIO17 held low, power-on pin held (not pulsed),
+            always "internal" adapter (no GPIO13/14 external detect).
+
     choice
         prompt "Select universal or specific system"
         default BLUERETRO_SYSTEM_UNIVERSAL

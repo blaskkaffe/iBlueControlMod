@@ -29,6 +29,41 @@
 #include "bare_metal_app_cpu.h"
 #include "manager.h"
 
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+/*
+ * iBlueControlMod (internal Dreamcast mod) pinout, recovered from the
+ * vendor firmware SEGA_DC_24V01 (BlueRetro v1.9 derivative).
+ *  - Boot/pair button is on GPIO16 (GPIO0 is not used as a button).
+ *  - GPIO13/GPIO14 drive a status LED (they are POWER_ON/RESET on BlueRetro HW2).
+ *  - GPIO17 (BlueRetro error LED) is held low as an output: never PWM it.
+ *  - GPIO25 is touched only by the button LED pattern and deep sleep.
+ */
+#define BOOT_BTN_PIN 16
+
+#define RESET_PIN 14
+
+#define POWER_ON_PIN 13
+#define POWER_OFF_PIN 17
+#define POWER_SENSE_PIN 39
+
+#define POWER_OFF_ALT_PIN 12
+
+#define SENSE_P1_PIN 36
+#define SENSE_P2_PIN 35
+#define SENSE_P3_PIN 32
+#define SENSE_P4_PIN 33
+
+#define SENSE_P1_ALT_PIN 15
+#define SENSE_P2_ALT_PIN 34
+
+#define LED_P1_PIN 15
+#define LED_P2_PIN 4
+#define LED_P3_PIN 2
+#define LED_P4_PIN 12
+
+#define IBLUE_AUX_PIN 25
+#define IBLUE_BOOT_BTN_DELAY_MS 1000
+#else
 #define BOOT_BTN_PIN 0
 
 #define RESET_PIN 14
@@ -51,6 +86,7 @@
 #define LED_P2_PIN 4
 #define LED_P3_PIN 12
 #define LED_P4_PIN 15
+#endif
 
 #define INHIBIT_CNT 200
 
@@ -165,7 +201,10 @@ static inline uint32_t get_port_led_pin(uint32_t index) {
 }
 
 static void internal_flag_init(void) {
-#ifdef CONFIG_BLUERETRO_HW2
+#if defined(CONFIG_BLUERETRO_HW_IBLUECONTROLMOD)
+    /* Always internal: GPIO13/14 are status LED pins, don't sample them */
+    hw_config.external_adapter = 0;
+#elif defined(CONFIG_BLUERETRO_HW2)
     if (hw_config.power_pin_polarity) {
         if (!gpio_get_level(POWER_ON_PIN) && gpio_get_level(RESET_PIN)) {
             hw_config.external_adapter = 1;
@@ -192,6 +231,9 @@ static void port_led_pulse(uint32_t pin) {
         PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[pin], PIN_FUNC_GPIO);
         gpio_set_direction(pin, GPIO_MODE_OUTPUT);
         esp_rom_gpio_connect_out_signal(pin, ledc_periph_signal[LEDC_HIGH_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_0, 0, 0);
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+        iblue_status_led_pairing();
+#endif
     }
 }
 
@@ -209,6 +251,23 @@ static void set_leds_as_btn_status(uint8_t state) {
         }
     }
 
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    /* Replicates vendor fw button LED pattern on GPIO13/14/25 */
+    if (state) {
+        gpio_set_level(RESET_PIN, 1);
+        gpio_set_level(IBLUE_AUX_PIN, 1);
+        esp_rom_gpio_connect_out_signal(POWER_ON_PIN, ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 1, 0);
+        esp_rom_gpio_connect_out_signal(RESET_PIN, ledc_periph_signal[LEDC_HIGH_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 1, 0);
+    }
+    else {
+        PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[POWER_ON_PIN], PIN_FUNC_GPIO);
+        gpio_set_direction(POWER_ON_PIN, GPIO_MODE_OUTPUT);
+        gpio_set_level(POWER_ON_PIN, 1);
+        gpio_set_level(RESET_PIN, 1);
+        gpio_set_level(IBLUE_AUX_PIN, 1);
+    }
+    (void)err_led_pin;
+#else
     /* Use error LED as well */
     if (state) {
         esp_rom_gpio_connect_out_signal(err_led_pin, ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 0, 0);
@@ -216,6 +275,7 @@ static void set_leds_as_btn_status(uint8_t state) {
     else {
         esp_rom_gpio_connect_out_signal(err_led_pin, ledc_periph_signal[LEDC_HIGH_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_0, 0, 0);
     }
+#endif
 }
 
 static void power_on_hdl(void) {
@@ -301,6 +361,9 @@ static void wired_port_hdl(void) {
 
         if (device->ids.out_idx < hw_config.port_cnt) {
             if (bt_ready) {
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+                iblue_status_led_connected();
+#endif
                 set_port_led(device->ids.out_idx, 1);
             }
             else if (get_port_led_pin(device->ids.out_idx) != current_pulse_led) {
@@ -545,6 +608,17 @@ static void sys_mgr_esp_restart(void) {
 
 static void sys_mgr_deep_sleep(void) {
     vTaskDelay(1000 / portTICK_PERIOD_MS);
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    /* Vendor fw: drive GPIO25 and GPIO15 low and latch them through deep sleep */
+    static const uint8_t hold_pins[] = {IBLUE_AUX_PIN, LED_P1_PIN};
+    for (uint32_t i = 0; i < sizeof(hold_pins); i++) {
+        PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[hold_pins[i]], PIN_FUNC_GPIO);
+        gpio_set_direction(hold_pins[i], GPIO_MODE_OUTPUT);
+        gpio_set_level(hold_pins[i], 0);
+        gpio_hold_en(hold_pins[i]);
+    }
+    gpio_deep_sleep_hold_en();
+#endif
     esp_deep_sleep_start();
 }
 
@@ -767,7 +841,12 @@ void sys_mgr_init(uint32_t package) {
     }
 
     /* If boot switch pressed at boot, trigger system on and goes to deep sleep */
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    vTaskDelay(IBLUE_BOOT_BTN_DELAY_MS / portTICK_PERIOD_MS);
+    if (sys_mgr_get_boot_btn()) {
+#else
     if (sys_mgr_get_boot_btn() && !sys_mgr_get_power()) {
+#endif
         sys_mgr_power_on();
         sys_mgr_deep_sleep();
     }

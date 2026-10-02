@@ -10,9 +10,21 @@
 #include "system/gpio.h"
 #include "driver/ledc.h"
 #include "adapter/config.h"
+#include "driver/gpio.h"
+#include "hal/ledc_hal.h"
+#include "hal/gpio_hal.h"
+#include "soc/io_mux_reg.h"
+#include "esp_rom_gpio.h"
+#include "sdkconfig.h"
 #include "led.h"
 
-#ifdef CONFIG_BLUERETRO_SYSTEM_SEA_BOARD
+#if defined(CONFIG_BLUERETRO_HW_IBLUECONTROLMOD)
+/* iBlueControlMod: the HS ch0 "pulse" PWM goes to GPIO14, one side of the
+ * status LED (other side on GPIO13). GPIO17 is NOT an LED on this board. */
+#define ERR_LED_PIN 14
+#define IBLUE_STATUS_LED_A_PIN 13
+#define IBLUE_STATUS_LED_B_PIN 14
+#elif defined(CONFIG_BLUERETRO_SYSTEM_SEA_BOARD)
 #define ERR_LED_PIN 32
 #else
 #define ERR_LED_PIN 17
@@ -71,7 +83,11 @@ void err_led_init(uint32_t package) {
     ledc_fade_func_install(0);
     ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, hw_config.led_pulse_off_duty_cycle, 0);
 
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    xTaskCreatePinnedToCore(&err_led_task, "err_led_task", 2048, NULL, 5, &err_led_task_hdl, 0);
+#else
     xTaskCreatePinnedToCore(&err_led_task, "err_led_task", 768, NULL, 5, &err_led_task_hdl, 0);
+#endif
     err_led_clear();
 }
 
@@ -79,6 +95,30 @@ void err_led_cfg_update(void) {
     ledc_set_freq(LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, hw_config.led_pulse_hz);
 }
 
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+/* Vendor firmware turns the generic error LED API into no-ops and drives
+ * the status LED from the system manager instead (see manager.c). */
+void err_led_set(void) {}
+void err_led_clear(void) {}
+void err_led_pulse(void) {}
+
+/* Vendor fw: pairing pattern, GPIO14 <- HS ch0 (pulse, inverted), GPIO13 <- LS ch1 */
+void iblue_status_led_pairing(void) {
+    esp_rom_gpio_connect_out_signal(IBLUE_STATUS_LED_B_PIN,
+        ledc_periph_signal[LEDC_HIGH_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_0, 1, 0);
+    esp_rom_gpio_connect_out_signal(IBLUE_STATUS_LED_A_PIN,
+        ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 0, 0);
+}
+
+/* Vendor fw: connected pattern, GPIO13 = GPIO low, GPIO14 <- LS ch1 */
+void iblue_status_led_connected(void) {
+    PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[IBLUE_STATUS_LED_A_PIN], PIN_FUNC_GPIO);
+    gpio_set_direction(IBLUE_STATUS_LED_A_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(IBLUE_STATUS_LED_A_PIN, 0);
+    esp_rom_gpio_connect_out_signal(IBLUE_STATUS_LED_B_PIN,
+        ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 0, 0);
+}
+#else
 void err_led_set(void) {
     vTaskSuspend(err_led_task_hdl);
     ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, hw_config.led_pulse_on_duty_cycle, 0);
@@ -96,6 +136,7 @@ void err_led_clear(void) {
 void err_led_pulse(void) {
     vTaskResume(err_led_task_hdl);
 }
+#endif /* CONFIG_BLUERETRO_HW_IBLUECONTROLMOD */
 
 uint32_t err_led_get_pin(void) {
     return err_led_pin;

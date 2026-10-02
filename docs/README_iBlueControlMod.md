@@ -3,6 +3,23 @@
 These notes come from reverse engineering the vendor firmware
 `SEGA_DC_24V01_iBlueControlMod.bin` (566,224 bytes, ESP32 app image, built
 Jan 27 2024 with ESP-IDF v5.1.1-dirty on Windows).
+SHA-256 `7d95dd7d8043e542759c8f7ce788764f3306eae94539ad8eec62fe23e1bf87fa`. This is the same
+file as the one in [VDfreesince1983/Ibluecontrolmod-Factory-Firmware](https://github.com/VDfreesince1983/Ibluecontrolmod-Factory-Firmware).
+
+## What others have already found
+
+- [BlueRetro discussion #1183](https://github.com/darthcloud/BlueRetro/discussions/1183) covers these AliExpress "iBlueControlMod" boards.
+  - zeus86 showed the boards run BlueRetro (his GameCube dump says "Jan 15 2024", "v5.1.1-dirty").
+  - darthcloud (the BlueRetro author) compared GPIO init logs and got this pin mapping: **0→16, 2→15, 12→2, 15→12, 16→17**.
+    The disassembly here confirms that mapping independently. It also finds three changes the log comparison missed:
+    the error LED moving from 17 to 14, sense P1/P2 being swapped, and the GPIO13/14/25 behaviour.
+  - zeus86 found the port shields are tied to ground, so wired/wireless auto-switching does not work as it does on official HW2.
+  - One user (bdavez) bricked a unit by flashing the HW1 build. They recovered it by OTA-flashing the vendor Dreamcast firmware through blueretro.io,
+    then running a factory reset from the vendor app. Their reset/pair button still didn't work afterwards.
+  - The vendor firmware can be OTA-flashed through blueretro.io. The vendor's own update tool reportedly failed.
+- The vendor's product page (e.g. [Handheld Legend](https://handheldlegend.com/products/sega-dc-internal-bluetooth-wireless-controller-adapter)) warns that
+  installing BlueRetro firmware "will damage this product". The button timings it lists match this disassembly:
+  0–3 s "console reset (all four LEDs solid)", 4–6 s disconnect, 7–9 s pairing, 10 s+ factory reset.
 
 ## How the comparison was done
 
@@ -30,8 +47,8 @@ Unchanged:
 | Error LED PWM (LEDC HS ch0) | GPIO17 | **GPIO14** |
 | GPIO17 | error LED | **output held low**, never toggled (`power_off_pin`) |
 | POWER_OFF pin | GPIO16 | GPIO17 (never pulsed) |
-| GPIO13 | POWER_ON (20 ms pulse) | **status LED side A**. "Power on" just drives it high and holds it, never pulsed |
-| GPIO14 | RESET (open drain, 500 ms low) | **status LED side B** (still pulsed low for 500 ms by "reset") |
+| GPIO13 | POWER_ON (20 ms pulse) | "power on" drives it high and holds it. It also gets LEDC LED patterns, so it is probably a status LED |
+| GPIO14 | RESET (open drain, 500 ms low) | still pulsed low for 500 ms on a short press. It also gets the error-LED PWM and LED patterns. **Unclear**: the vendor docs call a short press "console reset", so GPIO14 might also reach the reset line. Measure it |
 | Port LEDs P1..P4 | 2, 4, 12, 15 | **15, 4, 2, 12** |
 | Port sense P1..P4 | 35, 36, 32, 33 | **36, 35**, 32, 33 (P1/P2 swapped) |
 | External/internal detect | samples GPIO13+14 | **removed**: always internal, power sense on GPIO39 |
@@ -54,7 +71,7 @@ Software-only differences that are not needed for compatibility:
 
 - Stock firmware drives **PWM on GPIO17**, which the vendor keeps held low.
 - It drives **GPIO16 as a push-pull output**, but GPIO16 is the button on this board.
-- It reads the button on GPIO0, which does nothing here.
+- It reads the button on GPIO0. On this board GPIO0 is only the boot-mode pin on the debug header.
 - It treats GPIO13/14 as console power/reset and may mark the adapter "external".
 - It maps sense P1/P2 and port LEDs to the wrong pins.
 
@@ -78,19 +95,34 @@ BR_HW=_hw2 BR_SYS=_dreamcast_iblue idf.py reconfigure build
 
 ## Flashing without bricking
 
-**Back up first.** If the board exposes UART0 (TX/RX, EN and GPIO0 for download mode), read the whole flash before anything else:
+**Back up first.** The board has a 6-pin debug header next to the antenna. Pinout per zeus86 in discussion #1183, given as module pin / GPIO:
+
+| Header pin | Signal |
+|---|---|
+| 1 | VCC 3V3 |
+| 2 | module pin 25 = GPIO0 (boot mode) |
+| 3 | EN |
+| 4 | module pin 34 = GPIO3 / RXD0 |
+| 5 | module pin 35 = GPIO1 / TXD0 |
+| 6 | GND (square pad) |
+
+Wiring: adapter RX to header pin 5, adapter TX to header pin 4, and GPIO0 to GND to enter download mode. Read the whole flash before anything else:
 
 ```sh
 esptool.py -p PORT -b 921600 read_flash 0 0x800000 iblue_full_backup.bin
 ```
 
 That backup holds the vendor bootloader, the partition table and the factory app, so it restores everything.
+Check your partition table with `esptool.py read_flash 0x8000 0xc00 pt.bin` and then `gen_esp32part.py pt.bin`.
 
 **Prefer OTA through the BlueRetro web config.** OTA only writes the next `ota_x` slot. The vendor app stays in `factory` and the bootloader is never touched.
 
-**Factory reset recovers from a bad OTA app**, but only if that app boots far enough to run the system manager with the button on GPIO16. Both fork branches keep this path. Holding the button erases `otadata`, so the bootloader falls back to the factory (vendor) app:
+**Factory reset recovers from a bad OTA app**, but only if that app boots far enough to run the system manager with the button on GPIO16. Both fork branches keep this path. Holding the button erases `otadata`, so the bootloader falls back to whatever is in the `factory` partition.
+That is most likely the vendor app, but confirm it from your backup:
 - `iblue-v1.9`: hold for more than 10 s.
 - `iblue-latest`: hold for 30 s. Upstream only wipes `otadata` after 30 s; between 10 and 30 s it only resets the config.
+  A factory reset sent over Bluetooth from the web config also only resets the config on this branch. On `iblue-v1.9` it erases `otadata` as well.
+- If the app doesn't boot at all, use UART through the debug header, or OTA from blueretro.io if Bluetooth still comes up (that is how bdavez recovered).
 
 **Keep the image small and the flash header compatible.** The app must fit the OTA slot. Upstream slots are 1 MB; the fork images are about 565 KB (v1.9) and about 607 KB (latest). Keep the 8 MB flash-size header the vendor used, so the partition table is never seen as larger than the flash.
 
@@ -102,4 +134,5 @@ esptool.py write_flash 0x110000 app.bin   # only if your partition table matches
 
 Then select it with otatool. Or restore your full backup.
 
-**Check on the hardware first.** The pin roles come from code. Confirm them before relying on them, especially that GPIO17 is safe to hold low and what GPIO25 does.
+**Check on the hardware first.** The pin roles come from code. Confirm them before relying on them, especially that GPIO17 is safe to hold low, what GPIO25 does, and whether GPIO14 reaches the console reset line.
+The fork copies the vendor's behaviour on all of these pins exactly, so it does nothing the vendor firmware doesn't already do.

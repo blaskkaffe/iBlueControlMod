@@ -44,7 +44,7 @@ static const ledc_channel_t chans[3] = {LEDC_CHANNEL_3, LEDC_CHANNEL_4, LEDC_CHA
 
 /* r, g, b. Green is scaled down for orange as LED green is much brighter. */
 static const uint8_t presets[IBLUE_LED_COLOR_MAX][3] = {
-    [IBLUE_LED_ORANGE] = {255, 16, 0}, /* deep amber like the original DC LED */
+    [IBLUE_LED_ORANGE] = {255, 26, 0}, /* deep amber like the original DC LED */
     [IBLUE_LED_BLUE]   = {0, 0, 255},
 };
 /* Blink frequency per button hold stage (stage 0 = solid) */

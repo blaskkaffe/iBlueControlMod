@@ -136,3 +136,14 @@ Then select it with otatool. Or restore your full backup.
 
 **Check on the hardware first.** The pin roles come from code. Confirm them before relying on them, especially that GPIO17 is safe to hold low, what GPIO25 does, and whether GPIO14 reaches the console reset line.
 The fork copies the vendor's behaviour on all of these pins exactly, so it does nothing the vendor firmware doesn't already do.
+
+## Optional features (on by default in `configs/hw2/dreamcast_iblue`)
+
+Use `configs/hw2/dreamcast_iblue_vendor` for the build that is byte-identical to the vendor-replica fork (all of these off).
+
+| Option | Default | What it does |
+|---|---|---|
+| `CONFIG_BLUERETRO_IBLUE_RGB_LED` | y | PWM colour driver for the common-anode RGB LED (R=GPIO25, G=GPIO14, B=GPIO13, configurable). One colour: solid when on, breathing while pairing, blinking 2/4/8 Hz through the 3/6/10 s button stages. GPIO13/14 are no longer driven as "power"/"reset". |
+| `CONFIG_BLUERETRO_IBLUE_LED_ORANGE` / `_BLUE` | orange | Default colour. **Double-tap** the button to toggle orange/blue; the choice is saved in NVS (namespace `iblue`, key `led_col`). |
+| `CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S` | 60 | Pairing (BT inquiry, blinking LEDs) only for this many seconds after boot/console power-on, or after a **short tap** (which now (re)opens the window instead of the vendor's no-op "reset" pulse). Paired controllers can reconnect any time; BLE reconnect uses passive scanning. 0 = unlimited (upstream behaviour). |
+| `CONFIG_BLUERETRO_IBLUE_DC_MENU_COLORS` | y | PS4/PS5 light bar per port: A orange, B green, C blue, D magenta. |

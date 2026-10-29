@@ -18,6 +18,58 @@ menu "BlueRetro"
             GPIO17 held low, power-on pin held (not pulsed),
             always "internal" adapter (no GPIO13/14 external detect).
 
+    config BLUERETRO_IBLUE_RGB_LED
+        bool "iBlueControlMod: PWM colour driver for the RGB status LED"
+        depends on BLUERETRO_HW_IBLUECONTROLMOD
+        default y
+        help
+            Drive the 4-pin common-anode RGB LED (GPIO13/14/25) with 3 PWM
+            channels and show one selectable colour: solid when on,
+            breathing while pairing, blinking while the button is held.
+            Double-tap the button to switch colour (saved in NVS).
+            Disable to get the vendor-identical LED behaviour.
+
+    choice BLUERETRO_IBLUE_LED_DEFAULT_COLOR
+        prompt "iBlueControlMod: default RGB LED colour"
+        depends on BLUERETRO_IBLUE_RGB_LED
+        default BLUERETRO_IBLUE_LED_ORANGE
+
+        config BLUERETRO_IBLUE_LED_ORANGE
+            bool "Orange (like the original Dreamcast LED)"
+
+        config BLUERETRO_IBLUE_LED_BLUE
+            bool "Blue"
+    endchoice
+
+    config BLUERETRO_IBLUE_LED_R_GPIO
+        int "iBlueControlMod: RGB LED red GPIO"
+        depends on BLUERETRO_IBLUE_RGB_LED
+        default 25
+
+    config BLUERETRO_IBLUE_LED_G_GPIO
+        int "iBlueControlMod: RGB LED green GPIO"
+        depends on BLUERETRO_IBLUE_RGB_LED
+        default 14
+
+    config BLUERETRO_IBLUE_LED_B_GPIO
+        int "iBlueControlMod: RGB LED blue GPIO"
+        depends on BLUERETRO_IBLUE_RGB_LED
+        default 13
+
+    config BLUERETRO_IBLUE_PAIR_WINDOW_S
+        int "iBlueControlMod: pairing window in seconds (0 = unlimited)"
+        depends on BLUERETRO_HW_IBLUECONTROLMOD
+        default 60
+        help
+            Pairing (BT inquiry, blinking LEDs) is only allowed for this long
+            after the console turns on, or after a button tap. Already paired
+            controllers can still reconnect at any time.
+
+    config BLUERETRO_IBLUE_DC_MENU_COLORS
+        bool "iBlueControlMod: PS4/PS5 light bar colours A orange, B green, C blue, D magenta"
+        depends on BLUERETRO_HW_IBLUECONTROLMOD
+        default y
+
     choice
         prompt "Select universal or specific system"
         default BLUERETRO_SYSTEM_UNIVERSAL

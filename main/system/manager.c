@@ -28,6 +28,8 @@
 #include "system/led.h"
 #include "bare_metal_app_cpu.h"
 #include "manager.h"
+#include "esp_timer.h"
+#include "system/iblue_led.h"
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
 /*
@@ -152,6 +154,11 @@ static inline uint32_t sense_port_is_empty(uint32_t index) {
 }
 
 static inline void set_power_on(uint32_t state) {
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+    /* GPIO13 is an RGB LED colour on this board, there is no power output */
+    (void)state;
+    return;
+#endif
     if (hw_config.power_pin_polarity) {
         gpio_set_level(POWER_ON_PIN, !state);
     }
@@ -170,6 +177,11 @@ static inline void set_power_off(uint32_t state) {
 }
 
 static inline void set_reset(uint32_t state) {
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+    /* GPIO14 is an RGB LED colour on this board, there is no reset output */
+    (void)state;
+    return;
+#endif
     if (hw_config.reset_pin_polarity) {
         gpio_set_level(RESET_PIN, !state);
     }
@@ -177,6 +189,27 @@ static inline void set_reset(uint32_t state) {
         gpio_set_level(RESET_PIN, state);
     }
 }
+
+
+#ifdef IBLUE_PAIR_WINDOW
+/* Window starts at boot (esp_timer counts from boot) */
+static volatile int64_t pair_window_end_us = (int64_t)CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S * 1000000;
+
+void sys_mgr_pair_window_open(void) {
+    pair_window_end_us = esp_timer_get_time() + (int64_t)CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S * 1000000;
+}
+
+bool sys_mgr_pairing_allowed(void) {
+    return esp_timer_get_time() < pair_window_end_us;
+}
+
+static void pair_window_check(void) {
+    if (bt_hci_get_inquiry() && !sys_mgr_pairing_allowed()) {
+        printf("# %s: pairing window closed\n", __FUNCTION__);
+        bt_hci_stop_inquiry();
+    }
+}
+#endif
 
 static inline void set_sense_out(uint32_t pin, uint32_t state) {
     if (hw_config.ports_sense_output_polarity) {
@@ -231,7 +264,7 @@ static void port_led_pulse(uint32_t pin) {
         PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[pin], PIN_FUNC_GPIO);
         gpio_set_direction(pin, GPIO_MODE_OUTPUT);
         esp_rom_gpio_connect_out_signal(pin, ledc_periph_signal[LEDC_HIGH_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_0, 0, 0);
-#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+#if defined(CONFIG_BLUERETRO_HW_IBLUECONTROLMOD) && !defined(CONFIG_BLUERETRO_IBLUE_RGB_LED)
         iblue_status_led_pairing();
 #endif
     }
@@ -251,7 +284,10 @@ static void set_leds_as_btn_status(uint8_t state) {
         }
     }
 
-#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+#if defined(CONFIG_BLUERETRO_IBLUE_RGB_LED)
+    iblue_led_btn(state, 0);
+    (void)err_led_pin;
+#elif defined(CONFIG_BLUERETRO_HW_IBLUECONTROLMOD)
     /* Replicates vendor fw button LED pattern on GPIO13/14/25 */
     if (state) {
         gpio_set_level(RESET_PIN, 1);
@@ -285,6 +321,12 @@ static void power_on_hdl(void) {
 
     prev = curr;
     curr = sys_mgr_get_power();
+#ifdef IBLUE_PAIR_WINDOW
+    if (curr && !prev) {
+        /* Console just turned on: allow pairing for a while */
+        sys_mgr_pair_window_open();
+    }
+#endif
     if (curr) {
         /* System is power on */
         bt_hci_inquiry_override(0);
@@ -361,7 +403,7 @@ static void wired_port_hdl(void) {
 
         if (device->ids.out_idx < hw_config.port_cnt) {
             if (bt_ready) {
-#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+#if defined(CONFIG_BLUERETRO_HW_IBLUECONTROLMOD) && !defined(CONFIG_BLUERETRO_IBLUE_RGB_LED)
                 iblue_status_led_connected();
 #endif
                 set_port_led(device->ids.out_idx, 1);
@@ -428,7 +470,19 @@ static void boot_btn_hdl(void) {
     /* Let inhibit_cnt reach 0 before handling button again */
     if (inhibit_cnt && inhibit_cnt--) {
         /* Power off on quick double press */
-#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+#if defined(CONFIG_BLUERETRO_IBLUE_RGB_LED)
+        /* No power control on this board: a 2nd tap right after a short tap
+         * switches the RGB LED colour instead */
+        if (check_qdp && sys_mgr_get_boot_btn()) {
+            iblue_led_toggle_color();
+            check_qdp = 0;
+            while (sys_mgr_get_boot_btn()) {
+                vTaskDelay(10 / portTICK_PERIOD_MS);
+            }
+            inhibit_cnt = 50;
+        }
+        if (0) {
+#elif defined(CONFIG_BLUERETRO_HW_IBLUECONTROLMOD)
         /* No power control on this board (GPIO13 is the RGB LED): a double
          * tap would only disconnect every BT controller. Vendor fw ignores it. */
         (void)check_qdp;
@@ -452,6 +506,9 @@ static void boot_btn_hdl(void) {
                 ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, hw_config.led_flash_duty_cycle, 0);
                 ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_1, hw_config.led_flash_hz[state]);
                 state++;
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+                iblue_led_btn(1, state);
+#endif
             }
             if (hold_cnt == 3000) {
                 printf("# FW will be factory reset\n");
@@ -483,6 +540,9 @@ static void boot_btn_hdl(void) {
                     }
                     break;
                 case SYS_MGR_BTN_STATE2:
+#ifdef IBLUE_PAIR_WINDOW
+                    sys_mgr_pair_window_open();
+#endif
                     bt_hci_start_inquiry();
                     break;
                 default:
@@ -516,6 +576,9 @@ static void sys_mgr_task(void *arg) {
 
     while (1) {
         boot_btn_hdl();
+#ifdef IBLUE_PAIR_WINDOW
+        pair_window_check();
+#endif
 
         /* Fetch system cmd to execute */
         if (cmd_q_hdl) {
@@ -541,9 +604,19 @@ static void sys_mgr_task(void *arg) {
 }
 
 static void sys_mgr_reset(void) {
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+    /* No reset line on this board: a short tap (re)opens the pairing window */
+#ifdef IBLUE_PAIR_WINDOW
+    sys_mgr_pair_window_open();
+#endif
+    if (!bt_hci_get_inquiry()) {
+        bt_hci_start_inquiry();
+    }
+#else
     set_reset(0);
     vTaskDelay(hw_config.reset_pin_pulse_ms / portTICK_PERIOD_MS);
     set_reset(1);
+#endif
 }
 
 static void sys_mgr_inquiry_toggle(void) {
@@ -616,8 +689,13 @@ static void sys_mgr_esp_restart(void) {
 static void sys_mgr_deep_sleep(void) {
     vTaskDelay(1000 / portTICK_PERIOD_MS);
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+    iblue_led_sleep();
+    static const uint8_t hold_pins[] = {LED_P1_PIN};
+#else
     /* Vendor fw: drive GPIO25 and GPIO15 low and latch them through deep sleep */
     static const uint8_t hold_pins[] = {IBLUE_AUX_PIN, LED_P1_PIN};
+#endif
     for (uint32_t i = 0; i < sizeof(hold_pins); i++) {
         PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[hold_pins[i]], PIN_FUNC_GPIO);
         gpio_set_direction(hold_pins[i], GPIO_MODE_OUTPUT);
@@ -751,7 +829,7 @@ void sys_mgr_init(uint32_t package) {
 #endif
 
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-#ifdef CONFIG_BLUERETRO_HW2
+#if defined(CONFIG_BLUERETRO_HW2) && !defined(CONFIG_BLUERETRO_IBLUE_RGB_LED)
     io_conf.pin_bit_mask = 1ULL << POWER_ON_PIN;
     gpio_config(&io_conf);
     io_conf.pin_bit_mask = 1ULL << RESET_PIN;
@@ -810,14 +888,17 @@ void sys_mgr_init(uint32_t package) {
     else {
         io_conf.mode = GPIO_MODE_OUTPUT;
     }
+#ifndef CONFIG_BLUERETRO_IBLUE_RGB_LED
     set_power_on(0);
     io_conf.pin_bit_mask = 1ULL << POWER_ON_PIN;
     gpio_config(&io_conf);
+#endif
 
     set_power_off(0);
     io_conf.pin_bit_mask = 1ULL << power_off_pin;
     gpio_config(&io_conf);
 
+#ifndef CONFIG_BLUERETRO_IBLUE_RGB_LED
     gpio_set_level(RESET_PIN, 1);
     if (hw_config.reset_pin_od) {
         io_conf.mode = GPIO_MODE_OUTPUT_OD;
@@ -827,6 +908,7 @@ void sys_mgr_init(uint32_t package) {
     }
     io_conf.pin_bit_mask = 1ULL << RESET_PIN;
     gpio_config(&io_conf);
+#endif
 
     if (hw_config.ports_sense_p3_p4_as_output) {
         /* Wii-ext got a sense line that we need to control */
@@ -846,6 +928,10 @@ void sys_mgr_init(uint32_t package) {
         gpio_config(&io_conf);
         gpio_set_level(SENSE_P3_PIN, 1);
     }
+
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+    iblue_led_init();
+#endif
 
     /* If boot switch pressed at boot, trigger system on and goes to deep sleep */
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD

@@ -70,6 +70,10 @@ void err_led_init(uint32_t package) {
         .gpio_num   = ERR_LED_PIN,
         .speed_mode = LEDC_HIGH_SPEED_MODE,
         .hpoint     = 0,
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+        /* GPIO14 is a common-anode LED colour: keep it off until iblue_led takes over */
+        .flags.output_invert = 1,
+#endif
         .timer_sel  = LEDC_TIMER_0,
     };
 

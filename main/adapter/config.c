@@ -60,6 +60,17 @@ struct hw_config hw_config = {
     .sw_io0_hold_thres_ms = {1000, 3000, 6000},
 #endif
     .ps_ctrl_colors = {
+#ifdef CONFIG_BLUERETRO_IBLUE_DC_MENU_COLORS
+        /* iBlue: A orange, B green, C blue, D magenta (0xBBGGRR) */
+        0x0040FF, /* Orange */
+        0x00FF00, /* Green */
+        0xFF6000, /* Blue */
+        0x8000FF, /* Magenta */
+        0x0040FF, /* Orange */
+        0x00FF00, /* Green */
+        0xFF6000, /* Blue */
+        0x8000FF, /* Magenta */
+#else
         0xFF0000, /* Blue */
         0x0000FF, /* Red */
         0x00FF00, /* Green */
@@ -68,6 +79,7 @@ struct hw_config hw_config = {
         0x0080FF, /* Orange */
         0x00FFFF, /* Yellow */
         0xFF0080, /* Purple */
+#endif
     },
 };
 

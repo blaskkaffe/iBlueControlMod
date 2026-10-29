@@ -149,3 +149,16 @@ Use `configs/hw2/dreamcast_iblue_vendor` for the build that is byte-identical to
 | `CONFIG_BLUERETRO_IBLUE_LED_ORANGE` / `_BLUE` | orange | Default colour. **Double-tap** the button to toggle orange/blue; the choice is saved in NVS (namespace `iblue`, key `led_col`). |
 | `CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S` | 60 | Pairing (BT inquiry, blinking LEDs) only for this many seconds after boot/console power-on, or after a **short tap** (which now (re)opens the window instead of the vendor's no-op "reset" pulse). Paired controllers can reconnect any time; BLE reconnect uses passive scanning. 0 = unlimited (upstream behaviour). |
 | `CONFIG_BLUERETRO_IBLUE_DC_MENU_COLORS` | y | PS4/PS5 light bar per port: A orange, B green, C blue, D magenta. |
+
+## LED colour gestures (`iblue-latest`, RGB build)
+
+| Gesture | Effect |
+|---|---|
+| Short tap | Start / extend the 60 s pairing window |
+| Short tap, then a **quick 2nd tap** | Next preset: orange → blue → custom (custom only once one is saved) |
+| Short tap, then **tap and hold** | Colour adjust: the LED sweeps through all colours (10 s per circle); **release** when it looks right, and it is saved as the custom colour |
+| Hold 3 s / 6 s / 10 s | Disconnect / pairing / factory reset (30 s to also return to the vendor firmware) |
+
+## Dreamcast control channel (`CONFIG_BLUERETRO_BRCTL`, `iblue-latest`)
+
+Dreamcast software can read status, read/write the complete BlueRetro config (same struct as blueretro.io), set the LED and start/stop pairing over the controller port. See `dc/brctl/README.md` for the KallistiOS library (drop-in for openMenu) and `main/system/brctl_proto.h` for the wire protocol.

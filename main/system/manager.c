@@ -30,6 +30,7 @@
 #include "manager.h"
 #include "esp_timer.h"
 #include "system/iblue_led.h"
+#include "system/brctl.h"
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
 /*
@@ -201,6 +202,11 @@ void sys_mgr_pair_window_open(void) {
 
 bool sys_mgr_pairing_allowed(void) {
     return esp_timer_get_time() < pair_window_end_us;
+}
+
+uint32_t sys_mgr_pair_window_left_s(void) {
+    int64_t left = pair_window_end_us - esp_timer_get_time();
+    return (left > 0) ? (uint32_t)(left / 1000000) : 0;
 }
 
 static void pair_window_check(void) {
@@ -474,10 +480,26 @@ static void boot_btn_hdl(void) {
         /* No power control on this board: a 2nd tap right after a short tap
          * switches the RGB LED colour instead */
         if (check_qdp && sys_mgr_get_boot_btn()) {
-            iblue_led_toggle_color();
+            /* 2nd press after a short tap:
+             *  - quick tap: next preset (orange -> blue -> custom)
+             *  - hold: colour adjust, the LED sweeps through all colours,
+             *    release when it looks right to save it as the custom colour */
+            uint32_t held = 0;
+
             check_qdp = 0;
-            while (sys_mgr_get_boot_btn()) {
+            while (sys_mgr_get_boot_btn() && held < 60) {
                 vTaskDelay(10 / portTICK_PERIOD_MS);
+                held++;
+            }
+            if (held < 60) {
+                iblue_led_toggle_color();
+            }
+            else {
+                iblue_led_sweep_start();
+                while (sys_mgr_get_boot_btn()) {
+                    vTaskDelay(10 / portTICK_PERIOD_MS);
+                }
+                iblue_led_sweep_stop();
             }
             inhibit_cnt = 50;
         }
@@ -598,6 +620,11 @@ static void sys_mgr_task(void *arg) {
                 power_on_hdl();
             }
         }
+#ifdef CONFIG_BLUERETRO_BRCTL
+        if ((cnt % 10) == 0) {
+            brctl_status_update();
+        }
+#endif
         cnt++;
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
@@ -661,6 +688,10 @@ static int32_t sys_mgr_get_power(void) {
         return gpio_get_level(POWER_SENSE_PIN);
     }
 #endif
+}
+
+bool sys_mgr_console_on(void) {
+    return sys_mgr_get_power() != 0;
 }
 
 static int32_t sys_mgr_get_boot_btn(void) {
@@ -945,5 +976,8 @@ void sys_mgr_init(uint32_t package) {
     }
 #endif /* CONFIG_BLUERETRO_HW2 */
 
+#ifdef CONFIG_BLUERETRO_BRCTL
+    brctl_init();
+#endif
     xTaskCreatePinnedToCore(sys_mgr_task, "sys_mgr_task", 2048, NULL, 5, NULL, 0);
 }

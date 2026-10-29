@@ -65,6 +65,17 @@ menu "BlueRetro"
             after the console turns on, or after a button tap. Already paired
             controllers can still reconnect at any time.
 
+    config BLUERETRO_BRCTL
+        bool "Dreamcast: BlueRetro control channel over the Maple bus (brctl)"
+        depends on BLUERETRO_SYSTEM_DC
+        default y if BLUERETRO_HW_IBLUECONTROLMOD
+        help
+            Answer BLOCK_READ / BLOCK_WRITE / SET_CONDITION frames with the
+            private BlueRetro function code on the controller main unit, so
+            Dreamcast software (e.g. openMenu) can read status, read/write the
+            full BlueRetro config, set the LED and start/stop pairing.
+            See main/system/brctl_proto.h.
+
     config BLUERETRO_IBLUE_DC_MENU_COLORS
         bool "iBlueControlMod: PS4/PS5 light bar colours A orange, B green, C blue, D magenta"
         depends on BLUERETRO_HW_IBLUECONTROLMOD

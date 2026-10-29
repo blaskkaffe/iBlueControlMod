@@ -21,12 +21,15 @@ enum {
 
 void sys_mgr_cmd(uint8_t cmd);
 void sys_mgr_init(uint32_t package);
+#include <stdbool.h>
+bool sys_mgr_console_on(void);
 
 #if defined(CONFIG_BLUERETRO_HW_IBLUECONTROLMOD) && (CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S > 0)
 #define IBLUE_PAIR_WINDOW 1
 #include <stdbool.h>
 void sys_mgr_pair_window_open(void);
 bool sys_mgr_pairing_allowed(void);
+uint32_t sys_mgr_pair_window_left_s(void);
 #endif
 
 

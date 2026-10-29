@@ -428,7 +428,14 @@ static void boot_btn_hdl(void) {
     /* Let inhibit_cnt reach 0 before handling button again */
     if (inhibit_cnt && inhibit_cnt--) {
         /* Power off on quick double press */
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+        /* No power control on this board (GPIO13 is the RGB LED): a double
+         * tap would only disconnect every BT controller. Vendor fw ignores it. */
+        (void)check_qdp;
+        if (0) {
+#else
         if (check_qdp && sys_mgr_get_power() && sys_mgr_get_boot_btn()) {
+#endif
             sys_mgr_power_off();
             check_qdp = 0;
         }

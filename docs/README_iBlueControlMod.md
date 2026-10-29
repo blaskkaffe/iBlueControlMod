@@ -90,7 +90,9 @@ Build:
 
 ```sh
 cp configs/hw2/dreamcast_iblue sdkconfig
-BR_HW=_hw2 BR_SYS=_dreamcast_iblue idf.py reconfigure build
+BR_HW= BR_SYS=_dreamcast_iblue idf.py reconfigure build
+# Leave BR_HW empty: blueretro.io's OTA page refuses an image whose header says
+# "hw2" when the running firmware (the vendor one) doesn't, and vice versa.
 ```
 
 ## Flashing without bricking

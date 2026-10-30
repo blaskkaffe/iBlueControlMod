@@ -25,16 +25,13 @@
  * `total_ms`. It fades in and out at the ends and is dark from total_ms on. */
 uint32_t iblue_anim_duty(uint32_t elapsed_ms, uint32_t total_ms, int led);
 
-/* The intro that comes before the drops (timed from a recording of the vendor firmware): A is lit alone
- * for a moment (the port A pin lights by itself while the chip starts, this carries on from it), then all
- * four LEDs blink on together at full brightness, then they fade out as a waterfall, A first and D last.
- * Duty of one LED `ms` into the intro; 0 from IBLUE_ANIM_INTRO_MS on. */
-#define IBLUE_ANIM_INTRO_A_MS 300      /* A alone */
-#define IBLUE_ANIM_INTRO_ALL_MS 450    /* all four lit, up to the first fade */
-#define IBLUE_ANIM_INTRO_STAGGER_MS 90 /* from the fade of one LED to the next */
-#define IBLUE_ANIM_INTRO_FADE_MS 300   /* how long one LED takes to fade out */
-#define IBLUE_ANIM_INTRO_FADE_AT_MS (IBLUE_ANIM_INTRO_A_MS + IBLUE_ANIM_INTRO_ALL_MS)
-#define IBLUE_ANIM_INTRO_MS (IBLUE_ANIM_INTRO_FADE_AT_MS + 3 * IBLUE_ANIM_INTRO_STAGGER_MS + IBLUE_ANIM_INTRO_FADE_MS)
+/* The intro that comes before the drops, a scanner: A is lit for 0.3 s and then fades out quickly; when
+ * its 0.3 s are over B lights up, is lit for 0.3 s and fades, then C, then D. A carries on from the
+ * blink of port A's pin (hardware, while the chip starts). Duty of one LED `ms` into the intro; 0 from
+ * IBLUE_ANIM_INTRO_MS on. */
+#define IBLUE_ANIM_INTRO_HOLD_MS 300   /* one LED at full brightness; the next one lights when this is over */
+#define IBLUE_ANIM_INTRO_FADE_MS 200   /* then it fades out quickly (while the next one is lit) */
+#define IBLUE_ANIM_INTRO_MS (3 * IBLUE_ANIM_INTRO_HOLD_MS + IBLUE_ANIM_INTRO_HOLD_MS + IBLUE_ANIM_INTRO_FADE_MS)
 uint32_t iblue_anim_intro_duty(uint32_t ms, int led);
 
 /* How bright calm water is at u (0 .. 1 over the animation): it comes in, is raised after about a third and

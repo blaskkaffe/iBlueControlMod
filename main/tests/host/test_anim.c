@@ -10,34 +10,25 @@ static int fails, checks;
 static uint32_t d(uint32_t ms, uint32_t total, int led) { return iblue_anim_duty(ms, total, led); }
 
 static void intro_checks(void) {
-    uint32_t t, end[4];
-
-    /* A alone first */
-    for (t = 0; t < IBLUE_ANIM_INTRO_A_MS; t += 10) {
-        CHECK(iblue_anim_intro_duty(t, 0) == IBLUE_ANIM_MAX);
-        for (int led = 1; led < 4; led++) CHECK(iblue_anim_intro_duty(t, led) == 0);
-    }
-    /* then all four at full brightness until the first fade starts */
-    for (t = IBLUE_ANIM_INTRO_A_MS; t < IBLUE_ANIM_INTRO_FADE_AT_MS; t += 10) {
-        for (int led = 0; led < 4; led++) CHECK(iblue_anim_intro_duty(t, led) == IBLUE_ANIM_MAX);
-    }
-    /* the fade is a waterfall: A starts first and is gone first, D last; each only ever goes down */
     for (int led = 0; led < 4; led++) {
+        uint32_t start = (uint32_t)led * IBLUE_ANIM_INTRO_HOLD_MS;
+        uint32_t fade_at = start + IBLUE_ANIM_INTRO_HOLD_MS;
         uint32_t prev = IBLUE_ANIM_MAX;
 
-        end[led] = 0;
-        for (t = IBLUE_ANIM_INTRO_FADE_AT_MS; t < IBLUE_ANIM_INTRO_MS + 100; t++) {
+        for (uint32_t t = 0; t < start; t += 10) CHECK(iblue_anim_intro_duty(t, led) == 0);            /* not yet */
+        for (uint32_t t = start; t < fade_at; t += 10) CHECK(iblue_anim_intro_duty(t, led) == IBLUE_ANIM_MAX); /* lit 0.3 s */
+        for (uint32_t t = fade_at; t < fade_at + IBLUE_ANIM_INTRO_FADE_MS; t++) {                     /* then down, never up */
             uint32_t v = iblue_anim_intro_duty(t, led);
 
             CHECK(v <= prev);
-            if (v > 0) end[led] = t;
             prev = v;
         }
-        CHECK(iblue_anim_intro_duty(IBLUE_ANIM_INTRO_FADE_AT_MS + (uint32_t)led * IBLUE_ANIM_INTRO_STAGGER_MS, led) == IBLUE_ANIM_MAX);
+        CHECK(iblue_anim_intro_duty(fade_at + IBLUE_ANIM_INTRO_FADE_MS, led) == 0);
+        CHECK(iblue_anim_intro_duty(fade_at + IBLUE_ANIM_INTRO_FADE_MS / 2, led) < IBLUE_ANIM_MAX / 2);
+        /* the next LED lights the moment this one starts to fade */
+        if (led < 3) CHECK(iblue_anim_intro_duty(fade_at, led + 1) == IBLUE_ANIM_MAX);
     }
-    CHECK(end[0] < end[1] && end[1] < end[2] && end[2] < end[3]);
-    CHECK(end[3] < IBLUE_ANIM_INTRO_MS);
-    for (t = IBLUE_ANIM_INTRO_MS; t < IBLUE_ANIM_INTRO_MS + 200; t += 10) {
+    for (uint32_t t = IBLUE_ANIM_INTRO_MS; t < IBLUE_ANIM_INTRO_MS + 200; t += 10) {
         for (int led = 0; led < 4; led++) CHECK(iblue_anim_intro_duty(t, led) == 0);
     }
     CHECK(iblue_anim_intro_duty(0, 4) == 0 && iblue_anim_intro_duty(0, -1) == 0);

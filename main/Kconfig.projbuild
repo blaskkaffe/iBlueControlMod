@@ -84,13 +84,13 @@ menu "BlueRetro"
             unless a Bluetooth controller is connected.
 
     config BLUERETRO_IBLUE_BOOT_INTRO
-        bool "iBlueControlMod: before the drops: A alone, all four blink on, then they fade out A to D"
+        bool "iBlueControlMod: before the drops: A, B, C, D light up in turn (0.3 s each) and fade out"
         depends on BLUERETRO_IBLUE_BOOT_ANIM
         default y
         help
-            Port A's pin lights by itself while the chip starts. The intro carries on from it (timed from a
-            recording of the vendor firmware): A alone for 0.3 s, all four lit together for 0.45 s, then they
-            fade out one after the other, A first and D last. About 1.3 s, taken from the animation's time.
+            Port A's pin lights by itself while the chip starts. The intro carries on from it: A is lit for
+            0.3 s and fades out quickly; B lights up when A's 0.3 s are over, is lit for 0.3 s and fades, then C,
+            then D. About 1.4 s, taken from the animation's time.
 
     config BLUERETRO_IBLUE_BOOT_ANIM_MS
         int "iBlueControlMod: length of the Dreamcast BIOS boot animation (ms)"

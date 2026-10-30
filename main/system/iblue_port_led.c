@@ -65,7 +65,12 @@ static void port_led_task(void *arg) {
             else if (run < intro) {
                 /* A, C, B, D light up in turn and fade out, then the drops */
                 for (uint32_t i = 0; i < led_count; i++) {
-                    put(i, iblue_anim_intro_duty(run, (int)i) * CONFIG_BLUERETRO_IBLUE_LED_MAX_PCT / 100);
+#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_INTRO_ALL
+                    uint32_t duty = iblue_anim_intro_all_duty(run);
+#else
+                    uint32_t duty = iblue_anim_intro_duty(run, (int)i);
+#endif
+                    put(i, duty * CONFIG_BLUERETRO_IBLUE_LED_MAX_PCT / 100);
                 }
             }
             else {
@@ -148,7 +153,12 @@ void iblue_port_led_boot_anim(uint32_t elapsed_ms) {
     anim_start_ms = elapsed_ms;
 #ifdef CONFIG_BLUERETRO_IBLUE_BOOT_INTRO
     /* only when the drops still get a good time after it; real time goes on while it plays */
-    intro_ms = (elapsed_ms + IBLUE_ANIM_INTRO_MS + 2000 < CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_MS) ? IBLUE_ANIM_INTRO_MS : 0;
+#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_INTRO_ALL
+#define INTRO_LEN IBLUE_ANIM_INTRO_ALL_MS
+#else
+#define INTRO_LEN IBLUE_ANIM_INTRO_MS
+#endif
+    intro_ms = (elapsed_ms + INTRO_LEN + 2000 < CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_MS) ? INTRO_LEN : 0;
 #else
     intro_ms = 0;
 #endif

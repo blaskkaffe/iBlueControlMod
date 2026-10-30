@@ -34,7 +34,15 @@ static void intro_checks(void) {
     CHECK(iblue_anim_intro_duty(0, 4) == 0 && iblue_anim_intro_duty(0, -1) == 0);
 }
 
+static void intro_all_checks(void) {
+    CHECK(iblue_anim_intro_all_duty(0) == IBLUE_ANIM_MAX);
+    CHECK(iblue_anim_intro_all_duty(IBLUE_ANIM_INTRO_ALL_MS / 2) < IBLUE_ANIM_MAX / 2);
+    CHECK(iblue_anim_intro_all_duty(IBLUE_ANIM_INTRO_ALL_MS) == 0 && iblue_anim_intro_all_duty(5000) == 0);
+    for (uint32_t t = 10; t < IBLUE_ANIM_INTRO_ALL_MS; t += 10) CHECK(iblue_anim_intro_all_duty(t) <= iblue_anim_intro_all_duty(t - 10));
+}
+
 int main(void) {
+    intro_all_checks();
     intro_checks();
     uint32_t totals[] = {3000, 6000, 9000, 15000};
 

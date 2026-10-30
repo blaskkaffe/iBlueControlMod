@@ -139,3 +139,13 @@ uint32_t iblue_anim_intro_duty(uint32_t ms, int led) {
     level = 1.0f - (float)(ms - start) / (float)IBLUE_ANIM_INTRO_FADE_MS; /* what the eye sees: full, then down */
     return (uint32_t)(powf(level, GAMMA) * (float)IBLUE_ANIM_MAX + 0.5f);
 }
+
+uint32_t iblue_anim_intro_all_duty(uint32_t ms) {
+    float level;
+
+    if (ms >= IBLUE_ANIM_INTRO_ALL_MS) {
+        return 0;
+    }
+    level = 1.0f - (float)ms / (float)IBLUE_ANIM_INTRO_ALL_MS;
+    return (uint32_t)(powf(level, GAMMA) * (float)IBLUE_ANIM_MAX + 0.5f);
+}

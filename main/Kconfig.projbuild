@@ -91,6 +91,14 @@ menu "BlueRetro"
             Port A's pin lights by itself while the chip starts. The intro carries on from it: A fades out,
             then C, B and D each come on at full brightness and fade out, then the boot animation.
 
+    config BLUERETRO_IBLUE_BOOT_INTRO_ALL
+        bool "iBlueControlMod: the intro lights all four port LEDs at once (off: one after the other, A C B D)"
+        depends on BLUERETRO_IBLUE_BOOT_INTRO
+        default y
+        help
+            All four at full brightness together, fading out over 0.7 s: it hides the blink of port A's pin
+            (hardware, while the chip starts) best.
+
     config BLUERETRO_IBLUE_BOOT_ANIM_MS
         int "iBlueControlMod: length of the Dreamcast BIOS boot animation (ms)"
         depends on BLUERETRO_IBLUE_BOOT_ANIM

@@ -33,6 +33,12 @@ uint32_t iblue_anim_duty(uint32_t elapsed_ms, uint32_t total_ms, int led);
 #define IBLUE_ANIM_INTRO_MS (3 * IBLUE_ANIM_INTRO_SLOT_MS + IBLUE_ANIM_INTRO_FADE_MS)
 uint32_t iblue_anim_intro_duty(uint32_t ms, int led);
 
+/* The other intro: all four LEDs come on at full brightness at once and fade out together. This covers
+ * the blink of port A's pin (hardware, while the chip starts) best. Duty of every LED `ms` in; 0 from
+ * IBLUE_ANIM_INTRO_ALL_MS on. */
+#define IBLUE_ANIM_INTRO_ALL_MS 700
+uint32_t iblue_anim_intro_all_duty(uint32_t ms);
+
 /* How bright calm water is at u (0 .. 1 over the animation): it comes in, is raised after about a third and
  * is eased out to nothing at the end. For the preview drawings and the tests. */
 float iblue_anim_calm(float u);

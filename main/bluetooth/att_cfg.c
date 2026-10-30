@@ -19,6 +19,10 @@
 #include "adapter/gameid.h"
 #include "system/manager.h"
 #include "system/fs.h"
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+#include "system/iblue_gesture.h"
+#include "system/iblue_profile.h"
+#endif
 
 #define ATT_MAX_LEN 512
 #define BR_ABI_VER 2
@@ -30,6 +34,17 @@
 #define CFG_CMD_GET_CFG_SRC 0x05
 #define CFG_CMD_GET_FILE 0x06
 #define CFG_CMD_GET_FW_NAME 0x07
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+/* iBlueControlMod additions (the hosted web config uses them; other firmware answers a read with the ABI version) */
+#define CFG_CMD_GET_IBLUE_INFO 0x40   /* read: "iBLU", version, features, gestures, profiles, actions */
+#define CFG_CMD_GET_GESTURES 0x41     /* read: the action of each tap gesture */
+#define CFG_CMD_SET_GESTURES 0x42     /* write: one action per gesture; then read: result */
+#define CFG_CMD_GET_PROFILE 0x43      /* write: slot; then read: used, slot, name[16] */
+#define CFG_CMD_PROFILE_SAVE 0x44     /* write: slot, name; then read: result */
+#define CFG_CMD_PROFILE_LOAD 0x45     /* write: slot; then read: result */
+#define CFG_CMD_PROFILE_DELETE 0x46   /* write: slot; then read: result */
+#define IBLUE_CFG_VERSION 1
+#endif
 #define CFG_CMD_SET_DEFAULT_CFG 0x10
 #define CFG_CMD_SET_GAMEID_CFG 0x11
 #define CFG_CMD_OPEN_DIR 0x12
@@ -416,6 +431,50 @@ static void bt_att_cmd_read_group_rsp(uint16_t handle, uint16_t start, uint16_t 
     bt_att_cmd(handle, BT_ATT_OP_READ_GROUP_RSP, len);
 }
 
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+static uint8_t iblue_result;
+static uint8_t iblue_slot;
+
+static void bt_att_cfg_cmd_iblue_info_rsp(uint16_t handle) {
+    uint8_t features = 0x03; /* bit0 tap gestures, bit1 profiles */
+    uint8_t *d = bt_hci_pkt_tmp.att_data;
+
+#ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
+    features |= 0x04;        /* bit2 Dreamcast game id from openMenu */
+#endif
+    memcpy(d, "iBLU", 4);
+    d[4] = IBLUE_CFG_VERSION;
+    d[5] = features;
+    d[6] = IBLUE_GEST_MAX;
+    d[7] = IBLUE_PROFILES;
+    d[8] = IBLUE_ACT_MAX;
+    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 9);
+}
+
+static void bt_att_cfg_cmd_gestures_rsp(uint16_t handle) {
+    for (uint32_t i = 0; i < IBLUE_GEST_MAX; i++) {
+        bt_hci_pkt_tmp.att_data[i] = iblue_gesture_get(i);
+    }
+    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, IBLUE_GEST_MAX);
+}
+
+static void bt_att_cfg_cmd_profile_rsp(uint16_t handle) {
+    uint8_t *d = bt_hci_pkt_tmp.att_data;
+    char name[IBLUE_PROFILE_NAME_MAX + 1];
+
+    d[0] = iblue_profile_info(iblue_slot, name);
+    d[1] = iblue_slot;
+    memset(&d[2], 0, IBLUE_PROFILE_NAME_MAX + 1);
+    memcpy(&d[2], name, IBLUE_PROFILE_NAME_MAX);
+    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 2 + IBLUE_PROFILE_NAME_MAX + 1);
+}
+
+static void bt_att_cfg_cmd_iblue_result_rsp(uint16_t handle) {
+    bt_hci_pkt_tmp.att_data[0] = iblue_result;
+    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 1);
+}
+#endif
+
 static void bt_att_cfg_cmd_rd_hdlr(uint16_t handle) {
     switch (cfg_cmd) {
         case CFG_CMD_GET_ABI_VER:
@@ -439,6 +498,23 @@ static void bt_att_cfg_cmd_rd_hdlr(uint16_t handle) {
         case CFG_CMD_GET_FW_NAME:
             bt_att_cfg_cmd_fw_name_rsp(handle);
             break;
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+        case CFG_CMD_GET_IBLUE_INFO:
+            bt_att_cfg_cmd_iblue_info_rsp(handle);
+            break;
+        case CFG_CMD_GET_GESTURES:
+            bt_att_cfg_cmd_gestures_rsp(handle);
+            break;
+        case CFG_CMD_GET_PROFILE:
+            bt_att_cfg_cmd_profile_rsp(handle);
+            break;
+        case CFG_CMD_SET_GESTURES:
+        case CFG_CMD_PROFILE_SAVE:
+        case CFG_CMD_PROFILE_LOAD:
+        case CFG_CMD_PROFILE_DELETE:
+            bt_att_cfg_cmd_iblue_result_rsp(handle);
+            break;
+#endif
         default:
             printf("# Invalid read cfg cmd: %02X\n", cfg_cmd);
             bt_att_cfg_cmd_abi_ver_rsp(handle);
@@ -461,6 +537,30 @@ static void bt_att_cfg_cmd_wr_hdlr(struct bt_dev *device, uint8_t *data, uint32_
         case CFG_CMD_SET_GAMEID_CFG:
             config_update(GAMEID_CFG);
             break;
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+        case CFG_CMD_SET_GESTURES:
+            iblue_result = (len > IBLUE_GEST_MAX && iblue_gesture_set(&data[1])) ? 0 : IBLUE_PROF_BAD_ARG;
+            break;
+        case CFG_CMD_GET_PROFILE:
+            iblue_slot = len > 1 ? data[1] : 0xFF;
+            break;
+        case CFG_CMD_PROFILE_SAVE:
+        {
+            char name[IBLUE_PROFILE_NAME_MAX + 1] = {0};
+
+            if (len > 2) {
+                memcpy(name, &data[2], (len - 2) > IBLUE_PROFILE_NAME_MAX ? IBLUE_PROFILE_NAME_MAX : (len - 2));
+            }
+            iblue_result = len > 1 ? iblue_profile_save(data[1], name) : IBLUE_PROF_BAD_ARG;
+            break;
+        }
+        case CFG_CMD_PROFILE_LOAD:
+            iblue_result = len > 1 ? iblue_profile_load(data[1]) : IBLUE_PROF_BAD_ARG;
+            break;
+        case CFG_CMD_PROFILE_DELETE:
+            iblue_result = len > 1 ? iblue_profile_delete(data[1]) : IBLUE_PROF_BAD_ARG;
+            break;
+#endif
         case CFG_CMD_OTA_START:
             update_partition = esp_ota_get_next_update_partition(NULL);
             if (esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_hdl) == 0) {

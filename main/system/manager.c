@@ -31,6 +31,8 @@
 #include "esp_timer.h"
 #include "system/iblue_led.h"
 #include "system/iblue_port_led.h"
+#include "system/iblue_gesture.h"
+#include "system/iblue_tap.h"
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
 /*
@@ -506,6 +508,34 @@ static void wired_port_hdl(void) {
     }
 }
 
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+/* A short press (a tap) has just ended while the console is on. Count the taps that follow it (up to
+ * three, see iblue_tap.h) and run what that many taps are set to do. If the second press is kept down
+ * it is tap + hold: the LED sweeps through the colours until the button is released, and that colour is
+ * kept as the custom colour. The single tap waits for the gap, so a double tap does not also run it. */
+static void iblue_tap_gestures(void) {
+    struct iblue_tap tap;
+
+    iblue_tap_start(&tap);
+    while (1) {
+        int ev = iblue_tap_step(&tap, sys_mgr_get_boot_btn(), 10);
+
+        if (ev == IBLUE_TAP_EV_DONE) {
+            iblue_gesture_run(tap.taps - 1u);
+            return;
+        }
+        if (ev == IBLUE_TAP_EV_HOLD_START) {
+            iblue_led_sweep_start();
+        }
+        else if (ev == IBLUE_TAP_EV_HOLD_END) {
+            iblue_led_sweep_stop();
+            return;
+        }
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
+}
+#endif
+
 static void boot_btn_hdl(void) {
     static uint32_t check_qdp = 0;
     static uint32_t inhibit_cnt = 0;
@@ -516,32 +546,8 @@ static void boot_btn_hdl(void) {
     if (inhibit_cnt && inhibit_cnt--) {
         /* Power off on quick double press */
 #if defined(CONFIG_BLUERETRO_IBLUE_RGB_LED)
-        /* No power control on this board: a 2nd tap right after a short tap
-         * switches the RGB LED colour instead */
-        if (check_qdp && sys_mgr_get_boot_btn()) {
-            /* 2nd press after a short tap:
-             *  - quick tap: next colour (orange, blue, custom)
-             *  - kept pressed: colour adjust, the LED sweeps through all colours; release when it
-             *    shows the one you want, it is kept as the custom colour */
-            uint32_t held = 0;
-
-            check_qdp = 0;
-            while (sys_mgr_get_boot_btn() && held < 60) {
-                vTaskDelay(10 / portTICK_PERIOD_MS);
-                held++;
-            }
-            if (held < 60) {
-                iblue_led_toggle_color();
-            }
-            else {
-                iblue_led_sweep_start();
-                while (sys_mgr_get_boot_btn()) {
-                    vTaskDelay(10 / portTICK_PERIOD_MS);
-                }
-                iblue_led_sweep_stop();
-            }
-            inhibit_cnt = 50;
-        }
+        /* No power control on this board: the taps are counted in iblue_tap_gestures() */
+        (void)check_qdp;
         if (0) {
 #elif defined(CONFIG_BLUERETRO_HW_IBLUECONTROLMOD)
         /* No power control on this board (GPIO13 is the RGB LED): a double
@@ -589,8 +595,12 @@ static void boot_btn_hdl(void) {
             /* System is on */
             switch (state) {
                 case SYS_MGR_BTN_STATE0:
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+                    iblue_tap_gestures();
+#else
                     sys_mgr_reset();
                     check_qdp = 1;
+#endif
                     break;
                 case SYS_MGR_BTN_STATE1:
                     if (bt_hci_get_inquiry()) {
@@ -626,7 +636,11 @@ static void boot_btn_hdl(void) {
         }
 
         set_leds_as_btn_status(0);
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+        inhibit_cnt = (state == SYS_MGR_BTN_STATE0) ? 20 : INHIBIT_CNT; /* after a tap sequence only a short pause */
+#else
         inhibit_cnt = INHIBIT_CNT;
+#endif
     }
 }
 
@@ -995,6 +1009,7 @@ void sys_mgr_init(uint32_t package) {
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
     iblue_led_init();
+    iblue_gesture_init();
 #endif
 
     /* If boot switch pressed at boot, trigger system on and goes to deep sleep */

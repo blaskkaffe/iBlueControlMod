@@ -155,6 +155,9 @@ static void wl_init_task(void *arg) {
 
 void app_main()
 {
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+    sys_mgr_iblue_pins_off();
+#endif
     adapter_init();
 
     start_app_cpu(wired_init_task);

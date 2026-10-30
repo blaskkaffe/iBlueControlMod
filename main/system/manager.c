@@ -818,6 +818,23 @@ void sys_mgr_cmd(uint8_t cmd) {
 }
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+/* The first line of app_main: the power LED dark and the port LEDs off, before anything else (the file
+ * system, NVS, the Bluetooth stack take their time). What the pins do before the firmware runs at all is
+ * the chip's and the board's. */
+void sys_mgr_iblue_pins_off(void) {
+    iblue_led_pins_off();
+    for (uint32_t i = 0; i < sizeof(led_list); i++) {
+        gpio_config_t io = {
+            .pin_bit_mask = 1ULL << led_list[i],
+            .mode = GPIO_MODE_OUTPUT,
+        };
+
+        gpio_set_level(led_list[i], 0);
+        gpio_config(&io);
+        gpio_set_level(led_list[i], 0);
+    }
+}
+
 /* First thing the firmware does: take over the LEDs, so the port LEDs and the power LED do not sit in
  * whatever state the pins power up in while the file system, Bluetooth and the rest start (that took
  * seconds). The port LEDs belong to the boot animation from here on; the power LED shows its colour.

@@ -53,3 +53,6 @@ Nothing has run on a board: the build compiles in CI. Whether blocks 200 and up 
 By default (`BLUERETRO_IBLUE_BOOT_INTRO_ALL`) the intro lights **all four** port LEDs at full brightness at once and fades them out together over 0.7 s: that hides the blink of port A best. Switch that option off for the one-after-the-other version described next.
 
 Port A's pin lights by itself while the chip starts (hardware, before any firmware runs). The boot animation starts with an intro that carries on from it (`BLUERETRO_IBLUE_BOOT_INTRO`, on): A at full brightness fading out over 0.5 s, then C, B and D in turn (0.35 s apart), each at full brightness and fading out; then the drops. The intro takes 1.55 s of the animation's time (the drops come in at the place they would have been anyway) and is skipped when less than 2 s of drops would be left.
+
+## Start-up: pins taken first
+The first line of `app_main` drives the three RGB pins high (LED dark) and the four port LED pins low (`sys_mgr_iblue_pins_off()`), before the file system, NVS and Bluetooth start. What the pins do before the firmware runs at all (ROM start, second stage bootloader, about a third of a second) is the chip's and the board's: an OTA update cannot change the bootloader, so a blue flash or port A blink in that first moment stays.

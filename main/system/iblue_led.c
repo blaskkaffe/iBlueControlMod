@@ -108,11 +108,13 @@ static void set_level(uint32_t level_1023) {
 static void iblue_led_task(void *arg) {
     uint32_t t = 0;
     uint32_t connect_ms = 0;
-    float shown = 0.0f; /* what the eye sees of the solid LED, 0..1, while it fades in */
+    float shown = 1.0f; /* what the eye sees of the solid LED, 0..1: on fully from the start, no fade-in at power-on */
+    uint32_t breath_t = 0; /* time into the pairing breath: it starts at full brightness every time it begins */
 
     while (1) {
         uint32_t level = IBLUE_LED_MAX_DUTY;
         int solid = 0;
+        int breathing = 0;
 
         connect_ms = connecting ? connect_ms + IBLUE_LED_TICK_MS : 0;
         if (sleeping) {
@@ -144,12 +146,14 @@ static void iblue_led_task(void *arg) {
             level = ((connect_ms / IBLUE_LED_CONNECT_BLINK_MS) % 2) ? 0 : IBLUE_LED_MAX_DUTY;
         }
         else if (bt_hci_get_inquiry()) {
-            /* Triangle "breathing" between 5% and 100% */
-            uint32_t ph = t % IBLUE_LED_BREATH_MS;
+            /* Triangle "breathing" between 5% and 100%. It starts at full brightness (where the solid LED
+             * was), goes down and comes back up, so it joins the solid LED without a jump. */
+            uint32_t ph = breath_t % IBLUE_LED_BREATH_MS;
             uint32_t half = IBLUE_LED_BREATH_MS / 2;
             uint32_t tri = (ph < half) ? ph : (IBLUE_LED_BREATH_MS - ph);
-            uint32_t lin = (tri * 1000) / half; /* 0..1000 */
+            uint32_t lin = 1000 - (tri * 1000) / half; /* 1000 at the start, 0 at the bottom */
             level = 50 + ((lin * lin / 1000) * (IBLUE_LED_MAX_DUTY - 50)) / 1000;
+            breathing = 1;
         }
         else {
             solid = 1;
@@ -168,6 +172,7 @@ static void iblue_led_task(void *arg) {
             shown = powf((float)level / (float)IBLUE_LED_MAX_DUTY, 1.0f / 2.2f);
         }
 
+        breath_t = breathing ? breath_t + IBLUE_LED_TICK_MS : 0;
         set_level(level);
         vTaskDelay(IBLUE_LED_TICK_MS / portTICK_PERIOD_MS);
         t += IBLUE_LED_TICK_MS;
@@ -269,6 +274,7 @@ void iblue_led_init(void) {
         };
         ledc_channel_config(&ch);
     }
+    set_level(IBLUE_LED_MAX_DUTY); /* on fully now, before the task has run once */
     init_done = 1;
     printf("# %s: RGB LED on R:%d G:%d B:%d colour %ld\n", __FUNCTION__,
         pins[0], pins[1], pins[2], color_idx);

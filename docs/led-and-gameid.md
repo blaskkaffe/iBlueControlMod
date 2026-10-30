@@ -63,3 +63,7 @@ Both LED tasks ran at priority 4 on core 0, below `wl_init_task` (10), which mou
 
 ## Power LED during the boot animation
 The power LED stays solid in its colour while the boot animation (intro and drops) plays: the pairing "breathing" and the connecting blink wait until it is over (button feedback and the tap dips still show). Before this the pairing window, which opens at power-on, made the power LED breathe from the start.
+
+## Power LED: on at once, breathing starts at full
+- At power-on the power LED comes on **fully** in its saved colour as soon as the firmware sets it up (no fade-in: the fade stuttered while the file system and Bluetooth started).
+- It stays solid through the whole boot animation. When the pairing window is open at the end, the **breathing starts at full brightness** (where the solid LED was), goes down to 5 % and comes back up. Before, the wave ran on a clock of its own, so it joined at a random point and the LED jumped.

@@ -39,7 +39,9 @@ jobs:
       run: |
         . $IDF_PATH/export.sh
         echo "br_version=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
-        echo "$(git describe --always --tags --dirty) ${{ github.event.inputs.hw_version }} ${{ github.event.inputs.br_config }}" | cut -c -31 > version.txt
+        VER_HW="${{ github.event.inputs.hw_version }}"
+        if [ "${{ github.event.inputs.hw_tag }}" = "none" ]; then VER_HW="iblue"; fi
+        echo "$(git describe --always --tags --dirty) $VER_HW ${{ github.event.inputs.br_config }}" | cut -c -31 > version.txt
         cat version.txt
         cp configs/${{ github.event.inputs.hw_version }}/${{ github.event.inputs.br_config }} sdkconfig
         HW_TAG="_${{ github.event.inputs.hw_version }}"

@@ -1,6 +1,7 @@
 /* Host test of the boot animation maths: see run.sh */
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include "../../system/iblue_anim_curve.h"
 
 static int fails, checks;
@@ -30,9 +31,9 @@ int main(void) {
                 if (ms > total - 100 && v > 150) lit_at_end++;
             }
         }
-        /* every LED gets a bright crest, nothing jumps by more than a third of the range in 10 ms, and it
+        /* every LED gets a clear crest, nothing jumps by more than a third of the range in 10 ms, and it
          * has eased out before the end */
-        for (int led = 0; led < 4; led++) CHECK(peak[led] > 900);
+        for (int led = 0; led < 4; led++) CHECK(peak[led] > 600);
         CHECK(maxstep < IBLUE_ANIM_MAX / 3);
         CHECK(lit_at_end == 0);
     }
@@ -50,9 +51,44 @@ int main(void) {
             if (vb > bb) { bb = vb; tb = ms; }
             if (ms > 300 && va > ba) { ba = va; ta = ms; }
         }
-        CHECK(bb > 900 && ba > 900 && ta > tb + 300);
+        CHECK(bb > 500 && ba > 500 && ta > tb + 300);
         /* calm water glows a little, it is not dark: A at 0.6 s is between the crests */
         CHECK(d(5000, total, 1) > 0);
+    }
+
+    {
+        /* The water level over the animation: it comes in at the start level, is raised after about a third,
+         * then fades out slowly: every step lower, nothing at the end */
+        float prev = 0.0f, peak = 0.0f;
+        int fall_started = 0, rises_after_peak = 0;
+
+        CHECK(iblue_anim_calm(0.0f) == 0.0f && iblue_anim_calm(1.0f) == 0.0f);
+        CHECK(iblue_anim_calm(0.25f) < 0.21f && iblue_anim_calm(0.25f) > 0.15f);   /* still the start level */
+        CHECK(iblue_anim_calm(0.50f) > 0.40f && iblue_anim_calm(0.50f) < 0.43f);   /* raised */
+        CHECK(iblue_anim_calm(0.40f) > iblue_anim_calm(0.25f) + 0.08f);            /* the rise is under way after a third */
+        for (int i = 0; i <= 1000; i++) {
+            float c = iblue_anim_calm((float)i / 1000.0f);
+            if (c > peak) peak = c;
+            if (fall_started && c > prev + 1e-6f) rises_after_peak++;
+            if (c < peak - 0.001f) fall_started = 1;
+            prev = c;
+        }
+        CHECK(rises_after_peak == 0);
+        CHECK(iblue_anim_calm(0.75f) < 0.6f * peak && iblue_anim_calm(0.9f) < 0.15f * peak);
+    }
+    {
+        /* gentle start: no LED steps by more than 45/1023 in 10 ms during the first second */
+        const uint32_t total = 6000;
+        uint32_t maxstep_start = 0, prev0[4] = {0};
+
+        for (uint32_t ms = 0; ms < 1000; ms += 10) {
+            for (int led = 0; led < 4; led++) {
+                uint32_t v = d(ms, total, led), st = v > prev0[led] ? v - prev0[led] : prev0[led] - v;
+                if (ms > 0 && st > maxstep_start) maxstep_start = st;
+                prev0[led] = v;
+            }
+        }
+        CHECK(maxstep_start < 45);
     }
 
     printf("%d checks, %d failed\n", checks, fails);

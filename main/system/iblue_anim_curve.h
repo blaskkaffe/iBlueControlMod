@@ -25,6 +25,10 @@
  * `total_ms`. It fades in and out at the ends and is dark from total_ms on. */
 uint32_t iblue_anim_duty(uint32_t elapsed_ms, uint32_t total_ms, int led);
 
+/* How bright calm water is at u (0 .. 1 over the animation): it comes in, is raised after about a third and
+ * is eased out to nothing at the end. For the preview drawings and the tests. */
+float iblue_anim_calm(float u);
+
 /* The water height itself at x (0 .. 4, LED i at i + 0.5), for the preview drawings and the tests. */
 float iblue_anim_height(float x, uint32_t elapsed_ms, uint32_t total_ms);
 

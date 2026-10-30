@@ -174,6 +174,31 @@ async function open(browser, server, url, opts) {
         await page.context().close();
     }
 
+    // ---- Dreamcast only setting (on by default)
+    for (const off of [false, true]) {
+        const { page, errors } = await open(browser, server, 'index.html', iblue);
+        if (off) { await page.evaluate(() => localStorage.setItem('iblueDcOnly', '0')); await page.reload(); }
+        const hidden = await page.isHidden('.notDc');
+        check(hidden === !off, 'N64 tools link ' + (off ? 'shown' : 'hidden') + ' when Dreamcast only is ' + (off ? 'off' : 'on'));
+        check(await page.isChecked('#dcOnly') === !off, 'the checkbox shows the setting');
+        if (!off) {
+            await page.uncheck('#dcOnly');
+            check(await page.evaluate(() => localStorage.getItem('iblueDcOnly')) === '0' && await page.isVisible('.notDc'), 'unchecking shows the other consoles again');
+        }
+        await page.context().close();
+    }
+    for (const off of [false, true]) {
+        const { page, errors } = await open(browser, server, 'advance.html', iblue);
+        if (off) { await page.evaluate(() => localStorage.setItem('iblueDcOnly', '0')); await page.reload(); }
+        await page.click('#btConn');
+        await page.waitForSelector('#systemCfg', { state: 'attached' });
+        const sys = await page.$$eval('#systemCfg option', (o) => o.map((x) => x.text));
+        const dst = await page.$$eval('#dstLabel option', (o) => o.map((x) => x.text));
+        check(off ? sys.length > 10 && dst.length > 10 : (sys.join() === 'Auto,DC' && dst.join() === 'Default,Dreamcast'),
+            'advance page system / destination lists with Dreamcast only ' + (off ? 'off' : 'on') + ': ' + sys.length + ' / ' + dst.length);
+        await page.context().close();
+    }
+
     await browser.close();
     server.close();
     console.log(checks + ' checks, ' + fails + ' failed');

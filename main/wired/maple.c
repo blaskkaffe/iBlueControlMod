@@ -17,6 +17,7 @@
 #include "system/delay.h"
 #include "system/gpio.h"
 #include "system/intr.h"
+#include "system/iblue_gameid.h"
 #include "maple.h"
 
 #define ID_CTRL    0x00000001
@@ -618,7 +619,12 @@ maple_end:
                                 if (phase) {
                                     ets_printf("RD ERR phase: %d, expected 0\n", phase);
                                 }
-                                mc_read(block_no * VMU_BLOCK_SIZE, (void *)&pkt.data32[2], VMU_BLOCK_SIZE);
+                                if (iblue_gameid_owns(block_no)) {
+                                    iblue_gameid_read((void *)&pkt.data32[2]);
+                                }
+                                else {
+                                    mc_read(block_no * VMU_BLOCK_SIZE, (void *)&pkt.data32[2], VMU_BLOCK_SIZE);
+                                }
                                 crc = maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
                                 // ets_printf("R: %02X %d %02X\n", block_no, phase, crc);
                                 break;
@@ -638,11 +644,18 @@ maple_end:
                                     if (bad_frame) {
                                         for (uint32_t i = 0; i < 128; i++) {
                                             uint8_t mc_data = maple_fix_byte(bad_frame, pkt.data[i + 11], pkt.data[i + 12]);
-                                            mc_write((block_no * VMU_BLOCK_SIZE) + (128 * phase) + i, &mc_data, 1);
+                                            if (!iblue_gameid_owns(block_no)) {
+                                                mc_write((block_no * VMU_BLOCK_SIZE) + (128 * phase) + i, &mc_data, 1);
+                                            }
                                         }
                                     }
                                     else {
-                                        mc_write((block_no * VMU_BLOCK_SIZE) + (128 * phase), (void *)&pkt.data32[2], 128);
+                                        if (iblue_gameid_owns(block_no)) {
+                                            iblue_gameid_write(phase, (void *)&pkt.data32[2]);
+                                        }
+                                        else {
+                                            mc_write((block_no * VMU_BLOCK_SIZE) + (128 * phase), (void *)&pkt.data32[2], 128);
+                                        }
                                     }
                                 }
                                 maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);

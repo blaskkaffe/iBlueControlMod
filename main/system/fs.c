@@ -50,7 +50,9 @@ void fs_reset(void) {
         while ((dir = readdir(d)) != NULL) {
             char tmp_str[32] = "/fs/";
             strcat(tmp_str, dir->d_name);
-            if (strcmp(tmp_str, BDADDR_FILE) != 0 && strcmp(tmp_str, BITSTREAM_FILE) != 0) {
+            /* The per-game configurations of the Dreamcast (DC_<product>) and the profiles (prof_<n>) are kept */
+            if (strcmp(tmp_str, BDADDR_FILE) != 0 && strcmp(tmp_str, BITSTREAM_FILE) != 0 &&
+                    strncmp(dir->d_name, "DC_", 3) != 0 && strncmp(dir->d_name, "prof_", 5) != 0) {
                 if(remove(tmp_str) == 0) {
                     printf("# RM %s\n", tmp_str);
                 }

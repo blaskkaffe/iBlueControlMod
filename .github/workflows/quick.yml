@@ -10,6 +10,10 @@ on:
         description: 'BlueRetro config'
         required: true
         default: 'universal'
+      hw_tag:
+        description: "Set to 'none' to build with an empty BR_HW (what blueretro.io OTA needs for the iBlueControlMod)"
+        required: false
+        default: ''
 
 jobs:
   build:
@@ -31,7 +35,9 @@ jobs:
         echo "$(git describe --always --tags --dirty) ${{ github.event.inputs.hw_version }} ${{ github.event.inputs.br_config }}" | cut -c -31 > version.txt
         cat version.txt
         cp configs/${{ github.event.inputs.hw_version }}/${{ github.event.inputs.br_config }} sdkconfig
-        BR_HW=_${{ github.event.inputs.hw_version }} BR_SYS=_${{ github.event.inputs.br_config }} idf.py build
+        HW_TAG="_${{ github.event.inputs.hw_version }}"
+        if [ "${{ github.event.inputs.hw_tag }}" = "none" ]; then HW_TAG=""; fi
+        BR_HW="$HW_TAG" BR_SYS=_${{ github.event.inputs.br_config }} idf.py build
     - name: Copy OTA initial binary
       working-directory: ./build
       run: |

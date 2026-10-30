@@ -15,3 +15,7 @@ Left out of the test firmware on purpose, to come later:
 ## Status after the web config
 - Tap actions: single and triple tap default to nothing; every tap can be mapped in the hosted web config (`web/`, iblue.html).
 - Whole-config profiles (4 slots) are saved/loaded from the web config over BLE. Still TODO: switching profiles with a controller hotkey or from openMenu.
+
+## Status after the web config
+- Tap actions: single and triple tap default to nothing; every tap can be mapped in the hosted web config (`web/`, iblue.html).
+- Whole-config profiles (4 slots) are saved/loaded from the web config over BLE. Still TODO: switching profiles with a controller hotkey or from openMenu.

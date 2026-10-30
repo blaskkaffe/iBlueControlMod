@@ -21,12 +21,13 @@ enum {
 
 void sys_mgr_cmd(uint8_t cmd);
 void sys_mgr_init(uint32_t package);
+/* 1 when the board senses a physical controller in this output port */
+uint32_t sys_mgr_port_plugged(uint32_t index);
 
 #if defined(CONFIG_BLUERETRO_HW_IBLUECONTROLMOD) && (CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S > 0)
 #define IBLUE_PAIR_WINDOW 1
 #include <stdbool.h>
 void sys_mgr_pair_window_open(void);
-uint32_t sys_mgr_port_plugged(uint32_t index);
 bool sys_mgr_pairing_allowed(void);
 #endif
 

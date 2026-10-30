@@ -21,6 +21,8 @@ enum {
 void iblue_led_init(void);
 /* Button feedback: active=1 while the button is held, stage 0..3 = hold stage */
 void iblue_led_btn(uint32_t active, uint32_t stage);
+/* A controller is connecting (found, not ready yet): the LED blinks until it is ready */
+void iblue_led_connecting(uint32_t on);
 /* Preset colours, persisted in NVS */
 void iblue_led_set_color(uint32_t idx);
 void iblue_led_toggle_color(void);

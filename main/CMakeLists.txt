@@ -64,6 +64,8 @@ set(srcs
     "system/intr.c"
     "system/led.c"
     "system/iblue_led.c"
+    "system/iblue_boot_anim.c"
+    "system/iblue_anim_curve.c"
     "system/bare_metal_app_cpu.c"
     "system/core0_stall.c"
     "system/core0_stall_highint_hdl.S"

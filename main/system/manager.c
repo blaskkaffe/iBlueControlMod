@@ -30,6 +30,7 @@
 #include "manager.h"
 #include "esp_timer.h"
 #include "system/iblue_led.h"
+#include "system/iblue_boot_anim.h"
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
 /*
@@ -221,6 +222,9 @@ static inline void set_sense_out(uint32_t pin, uint32_t state) {
 }
 
 static inline void set_port_led(uint32_t index, uint32_t state) {
+    if (iblue_boot_anim_active()) {
+        return; /* the boot animation owns the port LEDs; the real state is shown when it is done */
+    }
     if (state) {
         esp_rom_gpio_connect_out_signal(led_list[index], ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 0, 0);
     }
@@ -260,7 +264,7 @@ static void internal_flag_init(void) {
 }
 
 static void port_led_pulse(uint32_t pin) {
-    if (pin) {
+    if (pin && !iblue_boot_anim_active()) {
         PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[pin], PIN_FUNC_GPIO);
         gpio_set_direction(pin, GPIO_MODE_OUTPUT);
         esp_rom_gpio_connect_out_signal(pin, ledc_periph_signal[LEDC_HIGH_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_0, 0, 0);
@@ -273,13 +277,17 @@ static void port_led_pulse(uint32_t pin) {
 static void set_leds_as_btn_status(uint8_t state) {
     ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, hw_config.led_flash_on_duty_cycle, 0);
 
-    /* Use all port LEDs */
+    /* Use all port LEDs, but only when a Bluetooth controller is connected (and the boot animation is over):
+     * the RGB LED shows the button stages on its own. */
+    struct bt_dev *ready_dev = NULL;
+    bool port_leds_may_flash = !iblue_boot_anim_active() && bt_host_get_hid_init_dev(&ready_dev) >= 0;
+
     for (uint32_t i = 0; i < hw_config.port_cnt; i++) {
         uint8_t pin = led_list[i];
 
         PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[pin], PIN_FUNC_GPIO);
         gpio_set_direction(pin, GPIO_MODE_OUTPUT);
-        if (state) {
+        if (state && port_leds_may_flash) {
             esp_rom_gpio_connect_out_signal(pin, ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_1, 0, 0);
         }
     }
@@ -314,6 +322,15 @@ static void set_leds_as_btn_status(uint8_t state) {
 #endif
 }
 
+#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_ANIM
+/* The animation let go of the pins: all port LEDs off, wired_port_hdl() lights the connected ones */
+static void boot_anim_done(void) {
+    for (uint32_t i = 0; i < hw_config.port_cnt; i++) {
+        set_port_led(i, 0);
+    }
+}
+#endif
+
 static void power_on_hdl(void) {
 #ifdef CONFIG_BLUERETRO_HW2
     static int32_t curr = 0, prev = 0;
@@ -321,6 +338,17 @@ static void power_on_hdl(void) {
 
     prev = curr;
     curr = sys_mgr_get_power();
+#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_ANIM
+    if (curr && !prev) {
+        /* Console just turned on. The adapter boots with it: the first time, part of the BIOS animation
+         * has already played while the firmware was starting. */
+        static bool first = true;
+        uint32_t elapsed = first ? (uint32_t)(esp_timer_get_time() / 1000) + CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS : 0;
+
+        first = false;
+        iblue_boot_anim_start(led_list, elapsed, boot_anim_done);
+    }
+#endif
 #ifdef IBLUE_PAIR_WINDOW
     if (curr && !prev) {
         /* Console just turned on: allow pairing for a while */
@@ -373,6 +401,9 @@ static void wired_port_hdl(void) {
     uint32_t update = 0;
     uint16_t port_mask = 0;
     uint8_t err_led_set = 0;
+    struct bt_dev *ready_dev = NULL;
+    bool any_ready = bt_host_get_hid_init_dev(&ready_dev) >= 0; /* port LEDs only blink with a controller connected */
+    bool connecting = false;
 
     for (int32_t i = 0, j = 0, idx = 0; i < BT_MAX_DEV; i++) {
         struct bt_dev *device = NULL;
@@ -390,6 +421,9 @@ static void wired_port_hdl(void) {
         }
 
         bt_ready = atomic_test_bit(&device->flags, BT_DEV_HID_INIT_DONE);
+        if (!bt_ready && atomic_test_bit(&device->flags, BT_DEV_DEVICE_FOUND)) {
+            connecting = true;
+        }
 
 #ifdef CONFIG_BLUERETRO_HW2
         int32_t prev_idx = device->ids.out_idx;
@@ -417,9 +451,14 @@ static void wired_port_hdl(void) {
             uint8_t new_led = (device->ids.out_idx < hw_config.port_cnt) ? get_port_led_pin(device->ids.out_idx) : 0;
 
             if (bt_hci_get_inquiry()) {
-                port_led_pulse(new_led);
+                if (any_ready) {
+                    port_led_pulse(new_led);
+                    current_pulse_led = new_led;
+                }
+                else {
+                    current_pulse_led = 0; /* nothing connected: no blinking port LED, the RGB LED shows it */
+                }
                 err_led_set = 1;
-                current_pulse_led = new_led;
             }
             else {
                 current_pulse_led = 0;
@@ -441,6 +480,11 @@ static void wired_port_hdl(void) {
         }
 #endif
     }
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+    iblue_led_connecting(connecting);
+#else
+    (void)connecting;
+#endif
     if (hw_config.hotplug) {
         if (port_state != port_mask) {
             update++;

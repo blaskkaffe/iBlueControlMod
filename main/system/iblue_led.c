@@ -47,6 +47,8 @@ static const uint8_t presets[IBLUE_LED_COLOR_MAX][3] = {
     [IBLUE_LED_ORANGE] = {255, 22, 0}, /* deep amber like the original DC LED */
     [IBLUE_LED_BLUE]   = {0, 0, 255},
 };
+#define IBLUE_LED_CONNECT_BLINK_MS 300  /* half a period: 3 Hz */
+#define IBLUE_LED_CONNECT_MAX_MS 20000  /* a connection that never finishes must not blink forever */
 /* Blink frequency per button hold stage (stage 0 = solid) */
 static const uint32_t btn_blink_hz[4] = {0, 2, 4, 8};
 
@@ -55,6 +57,7 @@ static volatile uint32_t color_idx;
 static volatile uint32_t btn_active;
 static volatile uint32_t btn_stage;
 static volatile uint32_t sleeping;
+static volatile uint32_t connecting;
 static uint32_t init_done;
 
 static void set_level(uint32_t level_1023) {
@@ -67,9 +70,12 @@ static void set_level(uint32_t level_1023) {
 
 static void iblue_led_task(void *arg) {
     uint32_t t = 0;
+    uint32_t connect_ms = 0;
 
     while (1) {
         uint32_t level = IBLUE_LED_MAX_DUTY;
+
+        connect_ms = connecting ? connect_ms + IBLUE_LED_TICK_MS : 0;
 
         if (sleeping) {
             level = 0;
@@ -80,6 +86,10 @@ static void iblue_led_task(void *arg) {
                 uint32_t period = 1000 / hz;
                 level = ((t % period) < (period / 2)) ? IBLUE_LED_MAX_DUTY : 0;
             }
+        }
+        else if (connect_ms && connect_ms < IBLUE_LED_CONNECT_MAX_MS) {
+            /* a controller is connecting: blink until it is ready */
+            level = ((connect_ms / IBLUE_LED_CONNECT_BLINK_MS) % 2) ? 0 : IBLUE_LED_MAX_DUTY;
         }
         else if (bt_hci_get_inquiry()) {
             /* Triangle "breathing" between 5% and 100% */
@@ -162,6 +172,10 @@ void iblue_led_init(void) {
         pins[0], pins[1], pins[2], color_idx);
 
     xTaskCreatePinnedToCore(iblue_led_task, "iblue_led", 2048, NULL, 4, NULL, 0);
+}
+
+void iblue_led_connecting(uint32_t on) {
+    connecting = on;
 }
 
 void iblue_led_btn(uint32_t active, uint32_t stage) {

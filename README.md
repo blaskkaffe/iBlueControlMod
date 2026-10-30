@@ -16,6 +16,7 @@ The board runs a modified BlueRetro v1.9 from the factory, but its pins differ f
 | RGB status LED | Blue, or blinking green/red | **Solid orange** (like the original Dreamcast power LED) or **blue**, your choice |
 | Pairing blink | Port LEDs blink forever until a controller connects | Pairing runs for **60 s** after the console starts, then stops. A **tap** on the button opens it again |
 | PS4/PS5 light bar | BlueRetro default colours | Follows the Dreamcast menu colours: **A orange, B green, C blue, D magenta** |
+| Port LEDs | Blink forever while pairing, also with no controller | Animate during the console's boot animation, light up per connected controller, and only blink with a controller connected. The RGB LED blinks while a controller connects. See [docs/led-behaviour.md](docs/led-behaviour.md) |
 | Already-paired controllers | Reconnect | Reconnect at any time, even outside the pairing window |
 | Web config / OTA on blueretro.io | Works | Works |
 

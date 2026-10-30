@@ -34,6 +34,7 @@ enum {
     IBLUE_ACT_PROFILE_3,
     IBLUE_ACT_PROFILE_4,
     IBLUE_ACT_NEXT_PROFILE,  /* the next saved profile, round and round */
+    IBLUE_ACT_TOGGLE_GAMEID, /* game id on / off (the LED dips once for on, twice for off) */
     IBLUE_ACT_MAX,
 };
 

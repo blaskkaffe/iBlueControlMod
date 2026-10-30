@@ -70,6 +70,8 @@ static volatile uint32_t sleeping;
 static volatile uint32_t sweeping;
 static volatile uint32_t connecting;
 static volatile uint32_t sweep_t;
+static volatile uint32_t notice_ticks; /* frames left of a notice (see iblue_led_notice) */
+static volatile uint32_t notice_total;
 static uint8_t custom_rgb[3] = {255, 22, 0};
 static uint32_t has_custom;
 static uint32_t init_done;
@@ -114,6 +116,11 @@ static void iblue_led_task(void *arg) {
         connect_ms = connecting ? connect_ms + IBLUE_LED_TICK_MS : 0;
         if (sleeping) {
             level = 0;
+        }
+        else if (notice_ticks) {
+            /* a dip: 8 frames dark, 8 lit, once per count */
+            level = (((notice_total - notice_ticks) % 16) < 8) ? 0 : IBLUE_LED_MAX_DUTY;
+            notice_ticks--;
         }
         else if (sweeping) {
             /* Colour adjust: sweep the hue wheel, starting at red */
@@ -249,6 +256,11 @@ void iblue_led_init(void) {
         pins[0], pins[1], pins[2], color_idx);
 
     xTaskCreatePinnedToCore(iblue_led_task, "iblue_led", 2048, NULL, 4, NULL, 0);
+}
+
+void iblue_led_notice(uint32_t count) {
+    notice_total = count * 16;
+    notice_ticks = notice_total;
 }
 
 void iblue_led_connecting(uint32_t on) {

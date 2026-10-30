@@ -52,6 +52,7 @@
 
 #define DESC_CTRL       0x000F06FE
 #define DESC_CTRL_ALT   0x003FFFFF
+#define DESC_CTRL_RACING 0x000700FE /* no X, Y: A, B, Start, d-pad and three analog axes (stick X = steering, R / L trigger) */
 #define DESC_VMU_TIMER  0x7E7E3F40
 #define DESC_VMU_SCREEN 0x00051000
 #define DESC_VMU_MEMORY 0x000F4100
@@ -117,6 +118,12 @@ static uint32_t maple0_to_maple1[] = {
 };
 
 #ifndef CONFIG_BLUERETRO_WIRED_TRACE
+/* Racing Controller: area FF, direction 0, "Racing Controller" (the same layout as below, name replaced) */
+static const uint8_t racing_area_dir_name[] = {
+    0x61, 0x52, 0x00, 0xFF, 0x67, 0x6E, 0x69, 0x63, 0x6E, 0x6F, 0x43, 0x20, 0x6C, 0x6F, 0x72, 0x74,
+    0x20, 0x72, 0x65, 0x6C, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+};
+
 static const uint8_t ctrl_area_dir_name[] = {
     0x72, 0x44, 0x00, 0xFF, 0x63, 0x6D, 0x61, 0x65, 0x20, 0x74, 0x73, 0x61, 0x74, 0x6E, 0x6F, 0x43,
     0x6C, 0x6C, 0x6F, 0x72, 0x20, 0x20, 0x72, 0x65, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
@@ -472,12 +479,17 @@ maple_end:
                                 if (config.out_cfg[port].dev_mode == DEV_PAD_ALT) {
                                     pkt.data32[1] = DESC_CTRL_ALT;
                                 }
+                                else if (config.out_cfg[port].dev_mode == DEV_RACING) {
+                                    pkt.data32[1] = DESC_CTRL_RACING;
+                                }
                                 else {
                                     pkt.data32[1] = DESC_CTRL;
                                 }
                                 pkt.data32[2] = 0;
                                 pkt.data32[3] = 0;
-                                memcpy((void *)&pkt.data32[4], ctrl_area_dir_name, sizeof(ctrl_area_dir_name));
+                                memcpy((void *)&pkt.data32[4],
+                                    config.out_cfg[port].dev_mode == DEV_RACING ? racing_area_dir_name : ctrl_area_dir_name,
+                                    sizeof(ctrl_area_dir_name));
                                 memcpy((void *)&pkt.data32[12], brand, sizeof(brand));
                                 pkt.data32[27] = PWR_CTRL;
                                 maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);

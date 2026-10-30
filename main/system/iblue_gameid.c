@@ -13,6 +13,9 @@
 static DRAM_ATTR uint8_t box[IBLUE_GAMEID_BLOCK_SIZE];
 static DRAM_ATTR uint32_t last_seq;
 static DRAM_ATTR uint8_t inited;
+static DRAM_ATTR volatile uint8_t enabled = 1;  /* off: the id is remembered but no game configuration is loaded */
+static DRAM_ATTR uint8_t cur_id[ID_USED + 1];   /* the id the console last announced, NUL ended */
+static DRAM_ATTR uint8_t cur_n;
 
 static uint32_t IRAM_ATTR rd32(const uint8_t *p) {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
@@ -53,8 +56,39 @@ void IRAM_ATTR iblue_gameid_read(uint8_t *dst) {
     memcpy(dst, box, sizeof(box));
 }
 
-void IRAM_ATTR iblue_gameid_write(uint32_t phase, const uint8_t *src128) {
+/* Hand the game id (or no game, n = 0) to BlueRetro: gid_update_sys() and config_init(GAMEID_CFG) */
+static void IRAM_ATTR queue_id(const uint8_t *id, uint32_t n) {
     struct raw_fb fb = {0};
+
+    fb.header.type = FB_TYPE_SYS_ID;
+    if (n) {
+        fb.data[0] = 'D';
+        fb.data[1] = 'C';
+        fb.data[2] = '_';
+        memcpy(&fb.data[3], id, n);
+        fb.header.data_len = (uint8_t)(3 + n);
+    }
+    else {
+        fb.header.data_len = 0; /* no game: the normal configuration */
+    }
+    adapter_q_fb(&fb);
+}
+
+int IRAM_ATTR iblue_gameid_enabled(void) {
+    return enabled;
+}
+
+/* Off: back to the normal configuration at once. On: the game that is running gets its configuration. */
+void IRAM_ATTR iblue_gameid_set_enabled(int on) {
+    on = on ? 1 : 0;
+    if (on == enabled) {
+        return;
+    }
+    enabled = (uint8_t)on;
+    queue_id(cur_id, on ? cur_n : 0);
+}
+
+void IRAM_ATTR iblue_gameid_write(uint32_t phase, const uint8_t *src128) {
     uint32_t n = 0;
 
     if (!inited) {
@@ -91,18 +125,12 @@ void IRAM_ATTR iblue_gameid_write(uint32_t phase, const uint8_t *src128) {
     if (n > ID_USED) {
         n = ID_USED;
     }
-    fb.header.type = FB_TYPE_SYS_ID; /* the game id path of BlueRetro: gid_update_sys() and config_init(GAMEID_CFG) */
-    if (n) {
-        fb.data[0] = 'D';
-        fb.data[1] = 'C';
-        fb.data[2] = '_';
-        memcpy(&fb.data[3], &box[12], n);
-        fb.header.data_len = (uint8_t)(3 + n);
+    memcpy(cur_id, &box[12], n);
+    cur_id[n] = 0;
+    cur_n = (uint8_t)n;
+    if (enabled) {
+        queue_id(cur_id, n);
     }
-    else {
-        fb.header.data_len = 0; /* no game: the normal configuration */
-    }
-    adapter_q_fb(&fb);
     /* Keep the block as it is: it is what a read gives back */
     wr32(box + 28, crc32(box, 28));
 }

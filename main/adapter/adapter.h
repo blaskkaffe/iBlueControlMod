@@ -340,6 +340,7 @@ enum {
     DEV_PAD_ALT,
     DEV_KB,
     DEV_MOUSE,
+    DEV_RACING, /* Dreamcast: Racing Controller (steering, accelerator, brake) */
 };
 
 /* Acc mode */

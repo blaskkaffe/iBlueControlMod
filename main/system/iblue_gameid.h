@@ -34,11 +34,18 @@
 int iblue_gameid_owns(uint32_t block);
 void iblue_gameid_read(uint8_t *dst);                                   /* 512 bytes */
 void iblue_gameid_write(uint32_t phase, const uint8_t *src128);        /* phase 0..3, 128 bytes each */
+/* On by default. Off: games announce themselves but no game configuration is loaded (and the normal one is
+ * back at once); on again: the game that runs gets its configuration. Kept over restarts by
+ * iblue_gameid_ctl.c. */
+int iblue_gameid_enabled(void);
+void iblue_gameid_set_enabled(int on);
 
 #else
 #define iblue_gameid_owns(block) 0
 #define iblue_gameid_read(dst)
 #define iblue_gameid_write(phase, src)
+#define iblue_gameid_enabled() 0
+#define iblue_gameid_set_enabled(on)
 #endif
 
 #endif /* _IBLUE_GAMEID_H_ */

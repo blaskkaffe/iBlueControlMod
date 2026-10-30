@@ -8,6 +8,7 @@
 #include "system/manager.h"
 #include "system/iblue_led.h"
 #include "system/iblue_profile.h"
+#include "system/iblue_gameid_ctl.h"
 #include "system/iblue_gesture.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
@@ -94,6 +95,9 @@ void iblue_gesture_run(uint32_t gesture) {
             break;
         case IBLUE_ACT_NEXT_PROFILE:
             iblue_profile_next();
+            break;
+        case IBLUE_ACT_TOGGLE_GAMEID:
+            iblue_led_notice(iblue_gameid_ctl_toggle() ? 1 : 2);
             break;
         default:
             break;

@@ -34,6 +34,7 @@
 #include "system/iblue_led.h"
 #include "system/iblue_port_led.h"
 #include "system/iblue_gesture.h"
+#include "system/iblue_gameid_ctl.h"
 #include "system/iblue_tap.h"
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
@@ -1034,6 +1035,7 @@ void sys_mgr_init(uint32_t package) {
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
     iblue_led_init();
     iblue_gesture_init();
+    iblue_gameid_ctl_init();
 #endif
 
     /* If boot switch pressed at boot, trigger system on and goes to deep sleep */

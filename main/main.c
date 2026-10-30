@@ -90,10 +90,12 @@ static void wl_init_task(void *arg) {
     cov_init();
 #endif
 
+    err_led_init(chip_package);
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+    /* After err_led_init: that one puts its pulse on GPIO14, a colour of the RGB LED, and the last to
+     * route a pin wins */
     sys_mgr_iblue_early();
 #endif
-    err_led_init(chip_package);
 
     core0_stall_init();
 

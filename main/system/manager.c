@@ -868,6 +868,9 @@ void sys_mgr_init(uint32_t package) {
     };
     ledc_timer_config(&ledc_timer);
     ledc_channel_config(&ledc_channel);
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+    iblue_port_led_reclaim(); /* the channel setup above routed port A's pin to the 2 Hz flash */
+#endif
 
     while (wired_adapter.system_id <= WIRED_AUTO) {
         boot_btn_hdl();

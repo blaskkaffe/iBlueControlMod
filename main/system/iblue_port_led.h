@@ -25,11 +25,14 @@ void iblue_port_led_set(uint32_t index, bool on);
 /* The console powered on `elapsed_ms` ago (the adapter was still booting): run the rest of the boot
  * animation. The port LEDs belong to it until it is over. */
 void iblue_port_led_boot_anim(uint32_t elapsed_ms);
+/* Something else routed a port LED pin (LEDC channel setup): give every pin back to its PWM channel */
+void iblue_port_led_reclaim(void);
 /* True while the boot animation runs */
 bool iblue_port_led_busy(void);
 
 #else
 #define iblue_port_led_busy() false
+#define iblue_port_led_reclaim()
 #endif
 
 #endif /* _IBLUE_PORT_LED_H_ */

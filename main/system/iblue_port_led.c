@@ -140,6 +140,12 @@ void iblue_port_led_boot_anim(uint32_t elapsed_ms) {
     anim_active = true;
 }
 
+void iblue_port_led_reclaim(void) {
+    for (uint32_t i = 0; inited && i < led_count; i++) {
+        attach(i);
+    }
+}
+
 bool iblue_port_led_busy(void) {
     return anim_active;
 }

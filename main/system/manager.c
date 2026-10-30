@@ -829,9 +829,11 @@ void sys_mgr_iblue_pins_off(void) {
             .mode = GPIO_MODE_OUTPUT,
         };
 
-        gpio_set_level(led_list[i], 0);
+        /* A stays lit: the chip lights it by itself while it starts, and the intro begins with A lit, so there
+         * is no dip between the two */
+        gpio_set_level(led_list[i], i == 0);
         gpio_config(&io);
-        gpio_set_level(led_list[i], 0);
+        gpio_set_level(led_list[i], i == 0);
     }
 }
 
@@ -1002,6 +1004,10 @@ void sys_mgr_init(uint32_t package) {
     }
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
     iblue_port_led_init(led_list, hw_config.port_cnt);
+    /* gpio_config() above made every port LED pin a plain GPIO output, which disconnects it from its PWM
+     * channel: the intro stopped there (after A and B) and the pins stayed dark until the old start-up path
+     * attached them again. Give them back. */
+    iblue_port_led_reclaim();
 #endif
 
 #ifdef CONFIG_BLUERETRO_HW2

@@ -84,13 +84,29 @@ BR_HW= BR_SYS=_dreamcast_iblue idf.py reconfigure build
 | `configs/hw2/dreamcast_iblue` | Normal build: RGB LED colours, pairing window, menu light-bar colours |
 | `configs/hw2/dreamcast_iblue_vendor` | Same pins, but the LED, pairing and light-bar behaviour of the factory firmware |
 
+### Regular BlueRetro boards (HW1, HW2)
+
+The openMenu controller settings do not need the iBlue board: the Maple bus pins are the same on every BlueRetro wiring. `dreamcast_openmenu` is the stock Dreamcast build plus that channel and the Dreamcast menu light bar colours. It does not have the iBlue button, RGB LED or pairing window (those are the iBlue's pins).
+
+```sh
+# HW1
+cp configs/hw1/dreamcast_openmenu sdkconfig
+BR_HW=_hw1 BR_SYS=_dreamcast_openmenu idf.py reconfigure build
+# HW2
+cp configs/hw2/dreamcast_openmenu sdkconfig
+BR_HW=_hw2 BR_SYS=_dreamcast_openmenu idf.py reconfigure build
+```
+
+A fresh configuration gets the VMU on port A, which the channel needs. If the adapter already has a saved configuration with the VMU off, switch it on once on blueretro.io. HW1 cannot sense physical controllers, so "pad plugged in" never shows there. These builds are untested on those boards.
+
 | Kconfig option | Default | Meaning |
 |---|---|---|
 | `CONFIG_BLUERETRO_HW_IBLUECONTROLMOD` | y | The iBlueControlMod pin map |
 | `CONFIG_BLUERETRO_IBLUE_RGB_LED` | y | RGB LED colour driver (R = GPIO25, G = GPIO14, B = GPIO13, common anode) |
 | `CONFIG_BLUERETRO_IBLUE_LED_ORANGE` / `_BLUE` | orange | Colour on first boot |
 | `CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S` | 60 | Seconds of pairing after power-on or a tap; 0 means always pairing (upstream behaviour) |
-| `CONFIG_BLUERETRO_IBLUE_DC_MENU_COLORS` | y | PS4/PS5 light bars in the Dreamcast menu colours |
+| `CONFIG_BLUERETRO_IBLUE_DC_MENU_COLORS` | y on the iBlue | PS4/PS5 light bars in the Dreamcast menu colours (any Dreamcast build) |
+| `CONFIG_BLUERETRO_IBLUE_CONFIG_CHANNEL` | y on the iBlue | Controller settings from openMenu (any Dreamcast build) |
 
 ## Hardware notes
 

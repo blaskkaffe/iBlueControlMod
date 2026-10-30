@@ -55,7 +55,7 @@ iBlueControlMod (`main/`):
 - `system/iblue_cfg_proto.{h,c}`: wire format and command handler, portable C with no ESP-IDF or BlueRetro includes. The board supplies an `iblue_cfg_ops` table.
 - `system/iblue_cfg.{c,h}`: the board side: the window, the task, the ops over `config`, `bt_host` (connected controller, name, vid/pid), and `iblue_cfg_note_input()` which `adapter_bridge()` calls with every converted report (sticks and triggers count as pressed past half travel).
 - `wired/maple.c`: the block read/write hook, and the phase 3 trigger. `adapter/adapter.c`: the input note. `adapter/config.c`: `config_reset_map()` (the old table initialiser split out so a single port can be reset).
-- Kconfig `BLUERETRO_IBLUE_CONFIG_CHANNEL` (default y on this hardware). `main.c` starts the task after `mc_init()`.
+- Kconfig `BLUERETRO_IBLUE_CONFIG_CHANNEL` (any Dreamcast build; default y on the iBlue, set in `configs/hw1|hw2/dreamcast_openmenu` for regular HW1/HW2 boards). A fresh configuration enables the VMU on port A. `main.c` starts the task after `mc_init()`.
 - Host test of the handler: `sh main/tests/host/run.sh` (needs only a C compiler; 130 checks).
 
 openMenu: `iblue_link.c` (client), `iblue_map.c` (names and the swap rule), `ui_iblue.c` (screen), `iblue_vmu.c` (KOS blocks), `test/` (the same handler as a fake board). `sh openMenu/src/openmenu/test/run_iblue.sh`: 104 checks over link, rules and screen. The handler in `openmenu/test/fw` is a copy; if the protocol changes, change both.

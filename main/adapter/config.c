@@ -278,6 +278,10 @@ static void config_init_struct(struct config *data) {
         data->out_cfg[i].acc_mode = ACC_NONE;
         config_init_in_cfg(data, i);
     }
+#ifdef CONFIG_BLUERETRO_IBLUE_CONFIG_CHANNEL
+    /* The settings channel is in the VMU of port A */
+    data->out_cfg[0].acc_mode = ACC_MEM;
+#endif
 }
 
 static void config_init_nvs_patch(struct config *data) {

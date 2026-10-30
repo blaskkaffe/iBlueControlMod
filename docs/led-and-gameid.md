@@ -42,3 +42,9 @@ Needs: a Bluetooth controller connected (the board only answers on a port that h
 ## Not verified
 
 Nothing has run on a board: the build compiles in CI. Whether blocks 200 and up are really never used by a game or the BIOS file manager; whether the openMenu side starts the game before the adapter has applied the id (it reads the block back and retries); the colours of the sweep; how the fades look on your LEDs; the BIOS animation length.
+
+## Game id on / off, Racing mode, per-game controller type
+
+- **Game id on / off**: tap action 10 ("Game id on / off"), mappable to the single, double or triple tap on the hosted web config. Off: games still announce themselves but no game configuration is loaded and the normal configuration is back at once. On: the game that runs gets its configuration. Kept over restarts (NVS `iblue/gid_off`). The LED dips once for on and twice for off.
+- **Racing** (output mode 4): function word `0x000700FE`, name "Racing Controller": A, B, Start, d-pad and three analog axes (stick X = steering, right trigger = accelerator, left trigger = brake), no X / Y. The condition packet is the pad's. **Not tried on a console.**
+- **Per game**: the configuration BlueRetro saves for a game includes the output mode, so a game can run GamePadAlt (C, Z, D, second d-pad and stick) or Racing while others use the plain GamePad. Some games read the controller's capability mask and misbehave with `0x003FFFFF` (reported for Dolphin Blue), so GamePad stays the default. The hosted web config's Dreamcast presets page writes the type and the default mapping (L1 = Z, R1 = C, L2 / R2 = triggers, sticks as sticks, L3 / R3 unmapped) and can save them for the running game.

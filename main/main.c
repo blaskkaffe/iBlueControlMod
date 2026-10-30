@@ -25,6 +25,7 @@
 #include "wired/wired_rtos.h"
 #include "adapter/memory_card.h"
 #include "system/manager.h"
+#include "system/iblue_cfg.h"
 #include "tests/ws_srv.h"
 #include "tests/coverage.h"
 #include "sdkconfig.h"
@@ -127,6 +128,7 @@ static void wl_init_task(void *arg) {
 
 #ifndef CONFIG_BLUERETRO_QEMU
     mc_init();
+    iblue_cfg_init();
 
     sys_mgr_init(chip_package);
 #endif

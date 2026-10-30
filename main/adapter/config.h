@@ -105,6 +105,7 @@ void config_set_rst_bare_core(bool value);
 void hw_config_patch(void);
 void config_init(uint32_t src);
 void config_update(uint32_t dst);
+void config_reset_map(uint32_t port);
 uint32_t config_get_src(void);
 void config_debug_log(void);
 

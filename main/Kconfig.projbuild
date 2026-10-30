@@ -65,6 +65,16 @@ menu "BlueRetro"
             after the console turns on, or after a button tap. Already paired
             controllers can still reconnect at any time.
 
+    config BLUERETRO_IBLUE_CONFIG_CHANNEL
+        bool "iBlueControlMod: edit the controller mapping from openMenu (VMU blocks 200-207)"
+        depends on BLUERETRO_HW_IBLUECONTROLMOD
+        default y
+        help
+            Eight blocks of the emulated VMU are a mailbox that openMenu uses
+            to read and change the button mapping. They are never saved as VMU
+            data. Needs the VMU accessory enabled on port A. See
+            docs/openmenu-config-channel.md.
+
     config BLUERETRO_IBLUE_DC_MENU_COLORS
         bool "iBlueControlMod: PS4/PS5 light bar colours A orange, B green, C blue, D magenta"
         depends on BLUERETRO_HW_IBLUECONTROLMOD

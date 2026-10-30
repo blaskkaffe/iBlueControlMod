@@ -268,7 +268,9 @@ void iblue_led_init(void) {
     printf("# %s: RGB LED on R:%d G:%d B:%d colour %ld\n", __FUNCTION__,
         pins[0], pins[1], pins[2], color_idx);
 
-    xTaskCreatePinnedToCore(iblue_led_task, "iblue_led", 2048, NULL, 4, NULL, 0);
+    /* Above wl_init_task (10): its file system, NVS and Bluetooth set-up keeps core 0 busy for seconds, and a
+     * LED task below it is not scheduled until that is over. This one sleeps most of the time. */
+    xTaskCreatePinnedToCore(iblue_led_task, "iblue_led", 2048, NULL, 12, NULL, 0);
 }
 
 void iblue_led_notice(uint32_t count) {

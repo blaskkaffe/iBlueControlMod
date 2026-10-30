@@ -132,7 +132,9 @@ void iblue_port_led_init(const uint8_t *pins, uint32_t count) {
         ledc_channel_config(&ch);
     }
     inited = true;
-    xTaskCreatePinnedToCore(port_led_task, "iblue_port_led", 2048, NULL, 4, NULL, 0);
+    /* Above wl_init_task (10), which keeps core 0 busy for seconds while it starts: below it this task would
+     * not run until that is over and the intro and the first part of the drops would be skipped. */
+    xTaskCreatePinnedToCore(port_led_task, "iblue_port_led", 2048, NULL, 12, NULL, 0);
 }
 
 void iblue_port_led_set(uint32_t index, bool on) {

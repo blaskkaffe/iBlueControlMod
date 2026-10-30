@@ -56,3 +56,6 @@ Port A's pin lights by itself while the chip starts (hardware, before any firmwa
 
 ## Start-up: pins taken first
 The first line of `app_main` drives the three RGB pins high (LED dark) and the four port LED pins low (`sys_mgr_iblue_pins_off()`), before the file system, NVS and Bluetooth start. What the pins do before the firmware runs at all (ROM start, second stage bootloader, about a third of a second) is the chip's and the board's: an OTA update cannot change the bootloader, so a blue flash or port A blink in that first moment stays.
+
+## Why the intro did not show (1af3ce6)
+Both LED tasks ran at priority 4 on core 0, below `wl_init_task` (10), which mounts the file system and brings up Bluetooth and so keeps core 0 busy for seconds. The tasks were not scheduled until that was over (about 3 s), and the animation, which follows real time, then began in the middle of the drops. They run at priority 12 now (they sleep most of the time).

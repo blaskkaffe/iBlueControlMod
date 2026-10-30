@@ -103,7 +103,7 @@ BR_HW= BR_SYS=_dreamcast_iblue idf.py reconfigure build
 | Console power sense | 39 |
 | Maple bus ports A–D | 21/22, 3/5, 18/23, 26/27 |
 
-The board has no console power or reset control: GPIO13 and GPIO14 drive the RGB LED, not the console. The controller-port shields are tied to ground, so BlueRetro's wired/wireless auto-switching isn't possible on this board.
+The board has no console power or reset control: GPIO13 and GPIO14 drive the RGB LED, not the console. The port sense inputs (36, 35, 32, 33) are read like on official BlueRetro hardware: a user reports that this board does notice a physical controller being plugged in (possibly by current sensing), contrary to an earlier finding that the port shields are tied to ground. The openMenu Controllers screen shows "pad plugged in" per port so this can be checked on a real board; it is not verified by us yet.
 
 ## How this fork was made
 

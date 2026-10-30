@@ -140,6 +140,13 @@ static const sys_mgr_cmd_t sys_mgr_cmds[] = {
     sys_mgr_wired_reset,
 };
 
+static inline uint32_t sense_port_is_empty(uint32_t index);
+
+/* 1 when the board senses a physical controller in this output port */
+uint32_t sys_mgr_port_plugged(uint32_t index) {
+    return index < hw_config.port_cnt && !sense_port_is_empty(index);
+}
+
 static inline uint32_t sense_port_is_empty(uint32_t index) {
 #ifdef CONFIG_BLUERETRO_HW2
     if (hw_config.ports_sense_input_polarity) {

@@ -12,6 +12,7 @@
 #include "tools/util.h"
 #include "adapter/config.h"
 #include "bluetooth/host.h"
+#include "system/manager.h"
 #include "iblue_cfg.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_CONFIG_CHANNEL
@@ -37,6 +38,7 @@ static void op_get_port(void *ctx, uint8_t port, struct iblue_port *out) {
     out->acc_mode = config.out_cfg[port].acc_mode;
     out->map_size = config.in_cfg[port].map_size;
     out->connected = idx >= 0;
+    out->plugged = sys_mgr_port_plugged(port);
     if (idx >= 0 && dev) {
         out->vid = bt_adapter.data[dev->ids.id].base.vid;
         out->pid = bt_adapter.data[dev->ids.id].base.pid;
@@ -96,6 +98,16 @@ static int op_live(void *ctx, uint8_t port, uint32_t out[4]) {
     return connected;
 }
 
+static void op_get_global(void *ctx, struct iblue_global *out) {
+    (void)ctx;
+    out->inquiry_mode = config.global_cfg.inquiry_mode;
+}
+
+static void op_set_global(void *ctx, const struct iblue_global *in) {
+    (void)ctx;
+    config.global_cfg.inquiry_mode = in->inquiry_mode;
+}
+
 static const struct iblue_cfg_ops ops = {
     .get_port = op_get_port,
     .get_map = op_get_map,
@@ -105,6 +117,8 @@ static const struct iblue_cfg_ops ops = {
     .commit = op_commit,
     .revert = op_revert,
     .live = op_live,
+    .get_global = op_get_global,
+    .set_global = op_set_global,
 };
 
 static void cfg_task(void *arg) {

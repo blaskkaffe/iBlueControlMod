@@ -14,6 +14,8 @@ struct fake {
     struct iblue_map saved_map[IBLUE_PORTS][IBLUE_MAP_MAX];
     int commits, fail_commit;
     uint32_t held[4];
+    struct iblue_global global;
+    uint8_t plugged[IBLUE_PORTS];
 };
 
 static void defaults(struct fake *f) {
@@ -28,7 +30,7 @@ static void defaults(struct fake *f) {
     memcpy(f->saved_port, f->port, sizeof(f->port));
     memcpy(f->saved_map, f->map, sizeof(f->map));
 }
-static void o_get_port(void *c, uint8_t p, struct iblue_port *o) { *o = ((struct fake *)c)->port[p]; strcpy(o->name, "Pad"); o->connected = p == 1; }
+static void o_get_port(void *c, uint8_t p, struct iblue_port *o) { *o = ((struct fake *)c)->port[p]; strcpy(o->name, "Pad"); o->connected = p == 1; o->plugged = ((struct fake *)c)->plugged[p]; }
 static void o_get_map(void *c, uint8_t p, uint16_t f0, uint16_t n, struct iblue_map *o) { memcpy(o, &((struct fake *)c)->map[p][f0], n * 8); }
 static void o_set_map(void *c, uint8_t p, uint16_t f0, uint16_t n, const struct iblue_map *i, uint16_t ns) {
     struct fake *f = c; memcpy(&f->map[p][f0], i, n * 8); if (ns != 0xFFFF) f->port[p].map_size = ns;
@@ -38,7 +40,9 @@ static void o_reset(void *c, uint8_t p) { struct fake *f = c; for (int i = 0; i 
 static int o_commit(void *c) { struct fake *f = c; if (f->fail_commit) return -1; f->commits++; memcpy(f->saved_port, f->port, sizeof(f->port)); memcpy(f->saved_map, f->map, sizeof(f->map)); return 0; }
 static void o_revert(void *c) { struct fake *f = c; memcpy(f->port, f->saved_port, sizeof(f->port)); memcpy(f->map, f->saved_map, sizeof(f->map)); }
 static int o_live(void *c, uint8_t p, uint32_t o[4]) { struct fake *f = c; memcpy(o, f->held, 16); return p == 1; }
-static const struct iblue_cfg_ops ops = {o_get_port, o_get_map, o_set_map, o_set_type, o_reset, o_commit, o_revert, o_live};
+static void o_get_global(void *c, struct iblue_global *g) { *g = ((struct fake *)c)->global; }
+static void o_set_global(void *c, const struct iblue_global *g) { ((struct fake *)c)->global = *g; }
+static const struct iblue_cfg_ops ops = {o_get_port, o_get_map, o_set_map, o_set_type, o_reset, o_commit, o_revert, o_live, o_get_global, o_set_global};
 
 static uint16_t rd16(const uint8_t *p) { return p[0] | (p[1] << 8); }
 static uint32_t rd32(const uint8_t *p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24); }
@@ -153,6 +157,26 @@ int main(void) {
     CHECK(call(&c, w, IBLUE_CMD_LIVE, a, 1, &o, &ol) == IBLUE_RES_OK && ol == 20 && o[0] == 1 && rd32(o + 4) == (1u << 18));
     a[0] = 0;
     CHECK(call(&c, w, IBLUE_CMD_LIVE, a, 1, &o, &ol) == IBLUE_RES_OK && o[0] == 0);
+
+    /* physical controller sense is reported per port */
+    f.plugged[2] = 1; a[0] = 2;
+    CHECK(call(&c, w, IBLUE_CMD_PORT_INFO, a, 1, &o, &ol) == IBLUE_RES_OK && o[3] == 1);
+    a[0] = 3;
+    CHECK(call(&c, w, IBLUE_CMD_PORT_INFO, a, 1, &o, &ol) == IBLUE_RES_OK && o[3] == 0);
+
+    /* global: pairing mode */
+    CHECK(call(&c, w, IBLUE_CMD_GET_GLOBAL, a, 0, &o, &ol) == IBLUE_RES_OK && ol == 8 && o[0] == 0);
+    a[0] = 1;
+    CHECK(call(&c, w, IBLUE_CMD_SET_GLOBAL, a, 1, &o, &ol) == IBLUE_RES_OK && f.global.inquiry_mode == 1 && (c.status & IBLUE_ST_UNSAVED));
+    a[0] = 2;
+    CHECK(call(&c, w, IBLUE_CMD_SET_GLOBAL, a, 1, &o, &ol) == IBLUE_RES_BAD_ARG && f.global.inquiry_mode == 1);
+
+    /* per button options: scaling mode is 0..5 */
+    a[0] = 0; wr16(a + 1, 16); wr16(a + 3, 1); wr16(a + 5, 0xFFFF);
+    m = (struct iblue_map){16, 16, 0, 80, 40, 10, 6, 5}; memcpy(a + 7, &m, 8);
+    CHECK(call(&c, w, IBLUE_CMD_SET_MAP, a, 15, &o, &ol) == IBLUE_RES_OK && f.map[0][16].turbo == 6 && f.map[0][16].algo == 5);
+    m.algo = 6; memcpy(a + 7, &m, 8);
+    CHECK(call(&c, w, IBLUE_CMD_SET_MAP, a, 15, &o, &ol) == IBLUE_RES_BAD_ARG);
 
     CHECK(call(&c, w, 0x7F, a, 0, &o, &ol) == IBLUE_RES_BAD_CMD);
 

@@ -26,6 +26,7 @@ void sys_mgr_init(uint32_t package);
 #define IBLUE_PAIR_WINDOW 1
 #include <stdbool.h>
 void sys_mgr_pair_window_open(void);
+uint32_t sys_mgr_port_plugged(uint32_t index);
 bool sys_mgr_pairing_allowed(void);
 #endif
 

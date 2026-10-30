@@ -29,7 +29,7 @@ void iblue_cfg_write(uint32_t addr, const uint8_t *data, uint32_t size);
 void iblue_cfg_write_done(uint32_t block, uint32_t phase);
 
 /* Called with every converted input report of a Bluetooth controller (for press-to-learn) */
-void iblue_cfg_note_input(uint8_t out_idx, const struct wireless_ctrl *ctrl);
+void iblue_cfg_note_input(uint8_t out_idx, struct wireless_ctrl *ctrl);
 
 #else
 #define iblue_cfg_init()

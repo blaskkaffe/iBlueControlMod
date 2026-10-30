@@ -16,6 +16,10 @@ struct fake {
     uint32_t held[4];
     struct iblue_global global;
     uint8_t plugged[IBLUE_PORTS];
+    struct iblue_profile_info prof[IBLUE_PROFILES];
+    struct iblue_map prof_map[IBLUE_PROFILES][IBLUE_MAP_MAX];
+    char game[IBLUE_GAME_ID_MAX + 1];
+    int game_has, game_saved, game_deleted;
 };
 
 static void defaults(struct fake *f) {
@@ -42,7 +46,23 @@ static void o_revert(void *c) { struct fake *f = c; memcpy(f->port, f->saved_por
 static int o_live(void *c, uint8_t p, uint32_t o[4]) { struct fake *f = c; memcpy(o, f->held, 16); return p == 1; }
 static void o_get_global(void *c, struct iblue_global *g) { *g = ((struct fake *)c)->global; }
 static void o_set_global(void *c, const struct iblue_global *g) { ((struct fake *)c)->global = *g; }
-static const struct iblue_cfg_ops ops = {o_get_port, o_get_map, o_set_map, o_set_type, o_reset, o_commit, o_revert, o_live, o_get_global, o_set_global};
+static void o_prof_info(void *c, uint8_t s, struct iblue_profile_info *o) { *o = ((struct fake *)c)->prof[s]; }
+static int o_prof_save(void *c, uint8_t s, uint8_t p) {
+    struct fake *f = c; f->prof[s] = (struct iblue_profile_info){1, f->port[p].dev_mode, f->port[p].acc_mode};
+    memcpy(f->prof_map[s], f->map[p], sizeof(f->prof_map[s])); return 0;
+}
+static int o_prof_load(void *c, uint8_t s, uint8_t p) {
+    struct fake *f = c; if (!f->prof[s].used) return 1;
+    f->port[p].dev_mode = f->prof[s].dev_mode; f->port[p].acc_mode = f->prof[s].acc_mode;
+    memcpy(f->map[p], f->prof_map[s], sizeof(f->map[p])); return 0;
+}
+static int o_prof_del(void *c, uint8_t s) { ((struct fake *)c)->prof[s].used = 0; return 0; }
+static int o_game_set(void *c, const char *id) { struct fake *f = c; strcpy(f->game, id); return f->game_has && id[0]; }
+static int o_game_info(void *c, char id[IBLUE_GAME_ID_MAX + 1]) { struct fake *f = c; strcpy(id, f->game); return f->game[0] ? 1 | (f->game_has ? 6 : 0) : 0; }
+static int o_game_save(void *c) { struct fake *f = c; if (!f->game[0]) return 1; f->game_has = 1; f->game_saved++; return 0; }
+static int o_game_del(void *c) { struct fake *f = c; if (!f->game[0]) return 1; f->game_has = 0; f->game_deleted++; return 0; }
+static const struct iblue_cfg_ops ops = {o_get_port, o_get_map, o_set_map, o_set_type, o_reset, o_commit, o_revert, o_live, o_get_global, o_set_global,
+    o_prof_info, o_prof_save, o_prof_load, o_prof_del, o_game_set, o_game_info, o_game_save, o_game_del};
 
 static uint16_t rd16(const uint8_t *p) { return p[0] | (p[1] << 8); }
 static uint32_t rd32(const uint8_t *p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24); }
@@ -177,6 +197,52 @@ int main(void) {
     CHECK(call(&c, w, IBLUE_CMD_SET_MAP, a, 15, &o, &ol) == IBLUE_RES_OK && f.map[0][16].turbo == 6 && f.map[0][16].algo == 5);
     m.algo = 6; memcpy(a + 7, &m, 8);
     CHECK(call(&c, w, IBLUE_CMD_SET_MAP, a, 15, &o, &ol) == IBLUE_RES_BAD_ARG);
+
+    /* profiles */
+    CHECK(call(&c, w, IBLUE_CMD_PROFILE_LIST, a, 0, &o, &ol) == IBLUE_RES_OK && ol == 16 && o[0] == 0 && o[4] == 0);
+    a[0] = 1; a[1] = 2;
+    CHECK(call(&c, w, IBLUE_CMD_PROFILE_LOAD, a, 2, &o, &ol) == IBLUE_RES_EMPTY);
+    f.port[2].dev_mode = 1; f.port[2].acc_mode = 3; f.map[2][16].dst_btn = 19;
+    CHECK(call(&c, w, IBLUE_CMD_PROFILE_SAVE, a, 2, &o, &ol) == IBLUE_RES_OK);
+    CHECK(call(&c, w, IBLUE_CMD_PROFILE_LIST, a, 0, &o, &ol) == IBLUE_RES_OK && o[4] == 1 && o[5] == 1 && o[6] == 3 && o[0] == 0);
+    a[1] = 3; c.status = 0;
+    CHECK(call(&c, w, IBLUE_CMD_PROFILE_LOAD, a, 2, &o, &ol) == IBLUE_RES_OK && f.port[3].dev_mode == 1 && f.map[3][16].dst_btn == 19 && (c.status & IBLUE_ST_UNSAVED));
+    a[0] = 4;
+    CHECK(call(&c, w, IBLUE_CMD_PROFILE_SAVE, a, 2, &o, &ol) == IBLUE_RES_BAD_ARG);
+    a[0] = 1;
+    CHECK(call(&c, w, IBLUE_CMD_PROFILE_DELETE, a, 1, &o, &ol) == IBLUE_RES_OK && !f.prof[1].used);
+
+    /* games */
+    CHECK(call(&c, w, IBLUE_CMD_GAME_SAVE, a, 0, &o, &ol) == IBLUE_RES_NO_GAME);
+    CHECK(call(&c, w, IBLUE_CMD_GAME_DELETE, a, 0, &o, &ol) == IBLUE_RES_NO_GAME);
+    CHECK(call(&c, w, IBLUE_CMD_GAME_SET, (const uint8_t *)"MK51035", 7, &o, &ol) == IBLUE_RES_OK && ol == 1 && o[0] == 0 && strcmp(f.game, "MK51035") == 0);
+    CHECK(call(&c, w, IBLUE_CMD_GAME_SET, (const uint8_t *)"../etc", 6, &o, &ol) == IBLUE_RES_BAD_ARG && strcmp(f.game, "MK51035") == 0);
+    CHECK(call(&c, w, IBLUE_CMD_GAME_SET, (const uint8_t *)"12345678901234567", 17, &o, &ol) == IBLUE_RES_BAD_ARG);
+    c.status |= IBLUE_ST_UNSAVED;
+    CHECK(call(&c, w, IBLUE_CMD_GAME_SAVE, a, 0, &o, &ol) == IBLUE_RES_OK && f.game_saved == 1 && !(c.status & IBLUE_ST_UNSAVED));
+    CHECK(call(&c, w, IBLUE_CMD_GAME_INFO, a, 0, &o, &ol) == IBLUE_RES_OK && ol == 21 && o[0] == 7 && strcmp((const char *)o + 4, "MK51035") == 0);
+    CHECK(call(&c, w, IBLUE_CMD_GAME_SET, (const uint8_t *)"MK51035", 7, &o, &ol) == IBLUE_RES_OK && o[0] == 1);
+    CHECK(call(&c, w, IBLUE_CMD_GAME_DELETE, a, 0, &o, &ol) == IBLUE_RES_OK && !f.game_has);
+    CHECK(call(&c, w, IBLUE_CMD_GAME_SET, a, 0, &o, &ol) == IBLUE_RES_OK && f.game[0] == 0); /* detach */
+    CHECK(call(&c, w, IBLUE_CMD_GAME_INFO, a, 0, &o, &ol) == IBLUE_RES_OK && o[0] == 0);
+
+    /* Home + face buttons */
+    {
+        struct iblue_hotkey hk = {0};
+        uint32_t b = 1u << 18;
+        CHECK(iblue_hotkey_filter(&hk, &b) == -1 && b == (1u << 18));               /* a face alone is a normal press */
+        b = (1u << 22) | (1u << 18);
+        CHECK(iblue_hotkey_filter(&hk, &b) == -1 && !(b & 0xF0000) && (b & (1u << 22))); /* held before Home: no slot, hidden */
+        b = 1u << 22;
+        CHECK(iblue_hotkey_filter(&hk, &b) == -1);
+        b = (1u << 22) | (1u << 18);
+        CHECK(iblue_hotkey_filter(&hk, &b) == 0 && !(b & 0xF0000));
+        CHECK(iblue_hotkey_filter(&hk, &b) == -1);                                  /* held: only the edge counts */
+        b = (1u << 22) | (1u << 17); CHECK(iblue_hotkey_filter(&hk, &b) == 1);
+        b = (1u << 22) | (1u << 16); CHECK(iblue_hotkey_filter(&hk, &b) == 2);
+        b = (1u << 22) | (1u << 19); CHECK(iblue_hotkey_filter(&hk, &b) == 3);
+        b = 1u << 19; CHECK(iblue_hotkey_filter(&hk, &b) == -1 && b == (1u << 19));
+    }
 
     CHECK(call(&c, w, 0x7F, a, 0, &o, &ol) == IBLUE_RES_BAD_CMD);
 

@@ -62,7 +62,7 @@ brctl_led_rgb(port, 0xFF, 0x16, 0x00, 1);                 /* set + save custom c
 brctl_btn_set(port, BRCTL_GEST_DOUBLE_TAP, BRCTL_ACT_NONE, 1); /* openMenu owns double tap */
 ```
 
-The channel only appears on a port where a Bluetooth controller is connected (BlueRetro only presents a device there). Wire protocol: [`main/system/brctl_proto.h`](main/system/brctl_proto.h). Test program: [`dc/brctl/example`](dc/brctl/example).
+The channel only appears on a port where a Bluetooth controller is connected (BlueRetro only presents a device there). Wire protocol: [`main/iblue/brctl_proto.h`](main/iblue/brctl_proto.h). How the fork is organised, profiles and per-game settings: [docs/iblue-extras.md](docs/iblue-extras.md). Test program: [`dc/brctl/example`](dc/brctl/example).
 
 ## Installing
 

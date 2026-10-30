@@ -166,4 +166,4 @@ Every gesture except the 30 s hold can be remapped from Dreamcast software (`BRC
 
 ## Dreamcast control channel (`CONFIG_BLUERETRO_BRCTL`)
 
-Dreamcast software can read status, read/write the complete BlueRetro config (same struct as blueretro.io), set the LED, start/stop pairing and remap the button over the controller port. See `dc/brctl/README.md` for the KallistiOS library (drop-in for openMenu) and `main/system/brctl_proto.h` for the wire protocol (version 2).
+Dreamcast software can read status, read/write the complete BlueRetro config (same struct as blueretro.io), set the LED, start/stop pairing and remap the button over the controller port. See `dc/brctl/README.md` for the KallistiOS library (drop-in for openMenu) and `main/iblue/brctl_proto.h` for the wire protocol (version 3); the code layout is in `docs/iblue-extras.md`.

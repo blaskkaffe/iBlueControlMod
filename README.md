@@ -4,15 +4,20 @@ Open-source firmware for the **iBlueControlMod**, the internal Bluetooth control
 
 The board runs a modified BlueRetro v1.9 from the factory, but its pins differ from official BlueRetro hardware. Flashing a stock BlueRetro image misdrives the button, LEDs and port detection, and can make the board look bricked. This fork maps every pin the way the vendor firmware does, so it's safe to flash on this hardware. It's based on the final upstream BlueRetro, which brings newer controller support and fixes.
 
-> **Branches**
-> - **`main`**: tested on real hardware. This is the build to use.
-> - **`development`**: the next features (openMenu control channel, remappable button gestures, user-adjustable LED colour). It has only been tested in an emulator so far.
+> **You are on `development`.** It has everything in `main` plus:
+> - an openMenu control channel over the controller port
+> - remappable button gestures
+> - an LED colour you can set yourself
+>
+> These features have only been tested in an emulator so far. For a build tested on real hardware, use **`main`**.
 
 ## What's different from the factory firmware
 
 | | Factory (vendor) firmware | This fork (`main`) |
 |---|---|---|
 | BlueRetro base | v1.9 (Oct 2023) | Final upstream (Dec 2025): newer controllers, fixes and config options |
+| LED colour | Fixed | Orange, blue, or **any custom colour**, set with the button or from Dreamcast software |
+| Control from the Dreamcast | None | **openMenu or any homebrew** can read status, change every BlueRetro setting, set the LED, start pairing and take over the button (see below) |
 | RGB status LED | Blue, or blinking green/red | **Solid orange** (like the original Dreamcast power LED) or **blue**, your choice |
 | Pairing blink | Port LEDs blink forever until a controller connects | Pairing runs for **60 s** after the console starts, then stops. A **tap** on the button opens it again |
 | PS4/PS5 light bar | BlueRetro default colours | Follows the Dreamcast menu colours: **A orange, B green, C blue, D magenta** |
@@ -26,7 +31,8 @@ Everything else behaves like normal BlueRetro on the Dreamcast: controllers, rum
 | Action | What happens |
 |---|---|
 | **Tap** (under 3 s) | Opens the 60 s pairing window |
-| **Tap, then quickly tap again** | Switches the LED between orange and blue (remembered across power cycles) |
+| **Tap, then quickly tap again** | Next LED colour: orange → blue → custom (custom appears once you've saved one) |
+| **Tap, then tap and hold** | Colour adjust: the LED cycles through all colours (one lap every 10 s). Let go when it looks right; that colour is saved as your custom colour |
 | **Hold 3–6 s** | Stops pairing if it's running, otherwise disconnects all controllers |
 | **Hold 6–10 s** | Starts pairing |
 | **Hold 10–30 s** | Factory reset: erases settings, pairings and VMU saves (the LED colour is kept) |
@@ -34,7 +40,29 @@ Everything else behaves like normal BlueRetro on the Dreamcast: controllers, rum
 
 While you hold the button, the LED blinks faster at each stage (2, 4, then 8 times a second), so you can see what will happen when you let go.
 
+Dreamcast software can change what each gesture does, or set one to do nothing on the adapter so the software handles it itself (see below). The 30 s hold can't be remapped.
+
 The 30 s hold is your safety net: if a firmware update ever misbehaves, it takes you back to the vendor firmware still stored on the board.
+
+## Control from openMenu / Dreamcast software
+
+The adapter answers private commands on the Maple bus, the same wires the controllers use, so no extra wiring is needed. A small KallistiOS library in [`dc/brctl/`](dc/brctl/README.md) lets Dreamcast software:
+
+- **Read status:** firmware version, which port has which Bluetooth controller, pairing state, LED colour, and button presses as they happen.
+- **Change settings:** read and write the full BlueRetro config, the same one blueretro.io edits (controller mappings, VMU/rumble per port, and so on).
+- **Set the LED:** any RGB colour, a preset, or saving a colour as the custom one.
+- **Control Bluetooth:** start or stop pairing, or disconnect all controllers.
+- **Remap the button:** choose an action for each gesture, or "report only", so openMenu can use the button for its own functions.
+- **Restart** the adapter or **reset** its config.
+
+```c
+#include "brctl.h"
+int port = brctl_find();                                  /* -1 if no adapter answers */
+brctl_led_rgb(port, 0xFF, 0x16, 0x00, 1);                 /* set + save custom colour */
+brctl_btn_set(port, BRCTL_GEST_DOUBLE_TAP, BRCTL_ACT_NONE, 1); /* openMenu owns double tap */
+```
+
+The channel only appears on a port where a Bluetooth controller is connected (BlueRetro only presents a device there). Wire protocol: [`main/system/brctl_proto.h`](main/system/brctl_proto.h). Test program: [`dc/brctl/example`](dc/brctl/example).
 
 ## Installing
 
@@ -82,7 +110,7 @@ BR_HW= BR_SYS=_dreamcast_iblue idf.py reconfigure build
 | Build config | Use |
 |---|---|
 | `configs/hw2/dreamcast_iblue` | Normal build: RGB LED colours, pairing window, menu light-bar colours |
-| `configs/hw2/dreamcast_iblue_vendor` | Same pins, but the LED, pairing and light-bar behaviour of the factory firmware |
+| `configs/hw2/dreamcast_iblue_vendor` | Same pins, but the LED, pairing and light-bar behaviour of the factory firmware (no control channel) |
 
 | Kconfig option | Default | Meaning |
 |---|---|---|
@@ -91,6 +119,7 @@ BR_HW= BR_SYS=_dreamcast_iblue idf.py reconfigure build
 | `CONFIG_BLUERETRO_IBLUE_LED_ORANGE` / `_BLUE` | orange | Colour on first boot |
 | `CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S` | 60 | Seconds of pairing after power-on or a tap; 0 means always pairing (upstream behaviour) |
 | `CONFIG_BLUERETRO_IBLUE_DC_MENU_COLORS` | y | PS4/PS5 light bars in the Dreamcast menu colours |
+| `CONFIG_BLUERETRO_BRCTL` | y | Maple bus control channel for Dreamcast software |
 
 ## Hardware notes
 

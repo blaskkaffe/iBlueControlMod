@@ -8,6 +8,7 @@ From openMenu or any KOS program you can:
 - **Read or write the full BlueRetro config.** This is the same struct blueretro.io edits: system, per-port device and accessory modes, and button mappings.
 - **Control the LED:** set any RGB colour, pick a preset, or save a colour as custom.
 - **Control Bluetooth:** start or stop pairing, or disconnect all controllers.
+- **Remap the button/touch sensor:** pick an action per gesture, or report-only so your software handles it (`brctl_btn_set`, `status.btn_seq`/`btn_last`).
 - **Save or reset the config, and restart the adapter.**
 
 ## Files

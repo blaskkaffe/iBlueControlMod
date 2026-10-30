@@ -150,15 +150,20 @@ Use `configs/hw2/dreamcast_iblue_vendor` for the build that is byte-identical to
 | `CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S` | 60 | Pairing (BT inquiry, blinking LEDs) only for this many seconds after boot/console power-on, or after a **short tap** (which now (re)opens the window instead of the vendor's no-op "reset" pulse). Paired controllers can reconnect any time; BLE reconnect uses passive scanning. 0 = unlimited (upstream behaviour). |
 | `CONFIG_BLUERETRO_IBLUE_DC_MENU_COLORS` | y | PS4/PS5 light bar per port: A orange, B green, C blue, D magenta. |
 
-## LED colour gestures (`iblue-latest`, RGB build)
+## Button gestures (`iblue-latest` / `development`, RGB build)
 
-| Gesture | Effect |
+| Gesture | Default action |
 |---|---|
-| Short tap | Start / extend the 60 s pairing window |
-| Short tap, then a **quick 2nd tap** | Next preset: orange → blue → custom (custom only once one is saved) |
-| Short tap, then **tap and hold** | Colour adjust: the LED sweeps through all colours (10 s per circle); **release** when it looks right, and it is saved as the custom colour |
-| Hold 3 s / 6 s / 10 s | Disconnect / pairing / factory reset (30 s to also return to the vendor firmware) |
+| Tap (< 3 s) | Start / extend the 60 s pairing window |
+| Tap, then a **quick 2nd tap** | Next preset: orange → blue → custom (custom only once one is saved) |
+| Tap, then **tap and hold** | Colour adjust: the LED sweeps through all colours (10 s per circle); release to save it as the custom colour |
+| Hold 3–6 s | Stop pairing if running, else disconnect all controllers |
+| Hold 6–10 s | Start pairing |
+| Hold 10–30 s | Factory reset (settings, pairings, VMU; LED colour kept) |
+| Hold ≥ 30 s | Factory reset + erase `otadata` → back to the vendor firmware (cannot be remapped) |
 
-## Dreamcast control channel (`CONFIG_BLUERETRO_BRCTL`, `iblue-latest`)
+Every gesture except the 30 s hold can be remapped from Dreamcast software (`BRCTL_OP_BTN_SET`). The map is stored in NVS (`iblue/btn_map`). Each gesture also increments `status.btn_seq` and sets `status.btn_last`.
 
-Dreamcast software can read status, read/write the complete BlueRetro config (same struct as blueretro.io), set the LED and start/stop pairing over the controller port. See `dc/brctl/README.md` for the KallistiOS library (drop-in for openMenu) and `main/system/brctl_proto.h` for the wire protocol.
+## Dreamcast control channel (`CONFIG_BLUERETRO_BRCTL`)
+
+Dreamcast software can read status, read/write the complete BlueRetro config (same struct as blueretro.io), set the LED, start/stop pairing and remap the button over the controller port. See `dc/brctl/README.md` for the KallistiOS library (drop-in for openMenu) and `main/system/brctl_proto.h` for the wire protocol (version 2).

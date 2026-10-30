@@ -85,7 +85,7 @@ async function open(browser, server, url, opts) {
         check(/iBlueControlMod features: tap buttons, profiles, game id/.test(info), 'info line shows the features: ' + info);
         check(await page.inputValue('#gesture0') === '0' && await page.inputValue('#gesture1') === '3' && await page.inputValue('#gesture2') === '0',
             'defaults: single tap nothing, double tap next colour, triple tap nothing');
-        check((await page.$$('#gesture0 option')).length === 10, 'ten actions to choose from');
+        check((await page.$$('#gesture0 option')).length === 11, 'eleven actions to choose from');
         await page.selectOption('#gesture2', '6');
         await page.selectOption('#gesture0', '1');
         await page.click('#btnGestureSave');
@@ -196,6 +196,29 @@ async function open(browser, server, url, opts) {
         const dst = await page.$$eval('#dstLabel option', (o) => o.map((x) => x.text));
         check(off ? sys.length > 10 && dst.length > 10 : (sys.join() === 'Auto,DC' && dst.join() === 'Default,Dreamcast'),
             'advance page system / destination lists with Dreamcast only ' + (off ? 'off' : 'on') + ': ' + sys.length + ' / ' + dst.length);
+        await page.context().close();
+    }
+
+    // ---- Dreamcast controller presets
+    {
+        const { page, errors } = await open(browser, server, 'dcpresets.html', iblue);
+        await page.click('#btConn');
+        await page.waitForSelector('#divDcPresets', { state: 'visible' });
+        check((await page.$$('#dcPresetRows button')).length === 5, 'five presets');
+        await page.selectOption('#dcOutput', '1');
+        await page.click('#dcPreset2'); // racing
+        await page.waitForFunction(() => /is set on output 2/.test(document.getElementById('dcPresetStatus').textContent));
+        const w = await page.evaluate(() => window.__br.writes);
+        check(w.some((x) => x[0] === 3 && x[1][0] === 4 && x[1][1] === 3), 'racing mode (4) and rumble + memory written as the output data');
+        check(w.some((x) => x[0] === 2 && x[1][0] === 1), 'output 2 selected first');
+        check(w.some((x) => x[0] === 4 || x[0] === 5), 'the default mapping was written');
+        await page.evaluate(() => { window.__br.writes.length = 0; });
+        await page.click('#dcPreset3'); // keyboard: mode only
+        await page.waitForFunction(() => /Keyboard/.test(document.getElementById('dcPresetStatus').textContent));
+        const w2 = await page.evaluate(() => window.__br.writes);
+        check(w2.every((x) => x[0] === 2 || x[0] === 3) && w2.some((x) => x[0] === 3 && x[1][0] === 2), 'keyboard: only the output mode is written');
+        check(await page.isHidden('#divDcGame'), 'no game id, no per-game box');
+        check(errors.length === 0, 'no script errors on the Dreamcast presets page: ' + errors.join('; '));
         await page.context().close();
     }
 

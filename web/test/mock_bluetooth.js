@@ -11,8 +11,9 @@
         lastCmd: 0, result: 0, slot: 0,
         ota: { started: false, ended: false, aborted: false, bytes: [], chunks: 0 },
         log: [],
+        writes: [],
     };
-    const ACTIONS = 10;
+    const ACTIONS = 11;
     const dv = (arr) => new DataView(Uint8Array.from(arr).buffer);
     const str = (s) => Array.from(s).map((c) => c.charCodeAt(0));
 
@@ -63,6 +64,7 @@
         async writeValue(v) {
             const bytes = new Uint8Array(v.buffer ? v.buffer.slice(v.byteOffset, v.byteOffset + v.byteLength) : v);
             if (u === idx(uuids[7])) { command(bytes); }
+            else if (u === 2 || u === 3 || u === 4 || u === 5) { br.writes.push([u, Array.from(bytes)]); }
             else if (u === 8) { br.ota.chunks++; br.ota.bytes.push(...bytes); }
         },
         async readValue() {

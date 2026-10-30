@@ -427,6 +427,7 @@ export const devCfg = [
     'GamePadAlt',
     'Keyboard',
     'Mouse',
+    'Racing',
 ];
 
 export const accCfg = [
@@ -533,5 +534,6 @@ export const ibluActionNames = [
     'Load profile 3',
     'Load profile 4',
     'Load the next saved profile',
+    'Game id on / off (the LED dips once for on, twice for off)',
 ];
 export const ibluProfileResult = ['OK', 'That profile slot is empty', 'Bad request', 'Could not write it in the adapter'];

@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#define BRCTL_PROTO_VER 1
+#define BRCTL_PROTO_VER 2
 
 /* Function code in adapter (logical) byte order: bytes 'B' 'R' 'T' 'L' */
 #define BRCTL_FUNC 0x4C545242u
@@ -56,6 +56,36 @@ enum {
     BRCTL_OP_CONFIG_SAVE = 0x06,    /* apply + persist config written via ITEM_CONFIG */
     BRCTL_OP_CONFIG_DEFAULT = 0x07, /* reset config to defaults */
     BRCTL_OP_ADAPTER_RESET = 0x08,  /* restart the adapter */
+    BRCTL_OP_BTN_SET = 0x09,        /* arg0 = BRCTL_GEST_*, arg1 = BRCTL_ACT_*, arg2 bit0 = persist */
+    BRCTL_OP_BTN_DEFAULTS = 0x0A,   /* restore default button actions, arg0 bit0 = persist */
+};
+
+/* Button / touch sensor gestures (status.btn_last, BRCTL_OP_BTN_SET) */
+enum {
+    BRCTL_GEST_TAP = 0,         /* press < 3 s */
+    BRCTL_GEST_DOUBLE_TAP,      /* tap, then a 2nd quick tap within 2 s */
+    BRCTL_GEST_TAP_HOLD,        /* tap, then a 2nd press held > 0.6 s */
+    BRCTL_GEST_HOLD_3S,         /* released between 3 and 6 s */
+    BRCTL_GEST_HOLD_6S,         /* released between 6 and 10 s */
+    BRCTL_GEST_HOLD_10S,        /* released after 10 s (but before 30 s) */
+    BRCTL_GEST_MAX,
+};
+/* Holding 30 s ALWAYS factory-resets and returns to the vendor firmware
+ * (recovery path), whatever the mapping. */
+
+/* Actions a gesture can trigger. Every gesture is also reported in
+ * status.btn_seq / btn_last so Dreamcast software can react itself. */
+enum {
+    BRCTL_ACT_DEFAULT = 0,      /* built-in behaviour for that gesture */
+    BRCTL_ACT_NONE,             /* report only, adapter does nothing */
+    BRCTL_ACT_PAIR,             /* open the pairing window + start pairing */
+    BRCTL_ACT_PAIR_STOP_OR_DISCONNECT,
+    BRCTL_ACT_DISCONNECT,
+    BRCTL_ACT_LED_NEXT,         /* next LED preset */
+    BRCTL_ACT_LED_ADJUST,       /* colour sweep while held (TAP_HOLD only) */
+    BRCTL_ACT_FACTORY_RESET,    /* erase settings, pairings, VMU */
+    BRCTL_ACT_ADAPTER_RESET,    /* restart the adapter */
+    BRCTL_ACT_MAX,
 };
 
 /* Response codes (Maple) */
@@ -96,6 +126,10 @@ struct brctl_status {
     uint8_t port_bt_id[BRCTL_PORTS];      /* 0xFF = no BT controller on this port */
     uint8_t port_bt_type[BRCTL_PORTS];    /* BlueRetro BT_* type */
     uint8_t port_bt_subtype[BRCTL_PORTS];
+    uint16_t btn_seq;           /* +1 on every gesture */
+    uint8_t btn_last;           /* last BRCTL_GEST_*, 0xFF = none yet */
+    uint8_t btn_stage;          /* live: 0 released, 1 pressed, 2 >3 s, 3 >6 s, 4 >10 s */
+    uint8_t btn_map[8];         /* current BRCTL_ACT_* per gesture */
 } __attribute__((packed));
 
 #define BRCTL_ST_PAIRING 0x0001         /* inquiry (pairing) running */

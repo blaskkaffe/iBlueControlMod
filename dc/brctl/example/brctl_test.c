@@ -7,6 +7,7 @@
  *   X      LED colour wheel step (not saved)
  *   Y      save the current LED colour as custom
  *   START  read the full BlueRetro config and show a summary
+ *   L+R    toggle "openMenu owns the tap": tap = report only / default
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -72,6 +73,13 @@ static void show(int port, const struct brctl_info *info) {
         (unsigned long)st.seq, (st.flags & BRCTL_ST_PAIRING) ? "ON" : "off",
         st.pair_window_s, (st.flags & BRCTL_ST_CONSOLE_ON) ? "on" : "off");
     say("LED #%02X%02X%02X preset %u", st.led_rgb[0], st.led_rgb[1], st.led_rgb[2], st.led_preset);
+    {
+        static const char *gest[] = {"tap", "double tap", "tap+hold", "hold 3s", "hold 6s", "hold 10s"};
+        say("button: %u gestures, last %s, live stage %u", st.btn_seq,
+            (st.btn_last < 6) ? gest[st.btn_last] : "-", st.btn_stage);
+        say("button map: %u %u %u %u %u %u", st.btn_map[0], st.btn_map[1], st.btn_map[2],
+            st.btn_map[3], st.btn_map[4], st.btn_map[5]);
+    }
     for (int i = 0; i < BRCTL_PORTS; i++) {
         if (st.port_bt_id[i] == 0xFF) {
             say("  port %c: -", 'A' + i);
@@ -133,6 +141,13 @@ int main(int argc, char **argv) {
             if (!brctl_get_status(port, &st)) {
                 brctl_led_rgb(port, st.led_rgb[0], st.led_rgb[1], st.led_rgb[2], 1);
             }
+        }
+        if (s && s->ltrig > 200 && s->rtrig > 200) {
+            /* demo: hand the single tap over to this program (not persisted) */
+            static int owned;
+            owned = !owned;
+            brctl_btn_set(port, BRCTL_GEST_TAP, owned ? BRCTL_ACT_NONE : BRCTL_ACT_DEFAULT, 0);
+            thd_sleep(500);
         }
         if (pressed & CONT_START) {
             static struct br_config cfg;

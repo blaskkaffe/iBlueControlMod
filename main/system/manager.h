@@ -32,5 +32,13 @@ bool sys_mgr_pairing_allowed(void);
 uint32_t sys_mgr_pair_window_left_s(void);
 #endif
 
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+/* Remappable button / touch sensor gestures (see brctl_proto.h) */
+#define IBLUE_BTN_MAP 1
+void sys_mgr_btn_set(uint32_t gesture, uint32_t action, bool persist);
+void sys_mgr_btn_defaults(bool persist);
+void sys_mgr_btn_get(uint8_t *map8, uint16_t *seq, uint8_t *last, uint8_t *stage);
+#endif
+
 
 #endif /* _SYS_MANAGER_H_ */

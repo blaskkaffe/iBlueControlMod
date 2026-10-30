@@ -71,6 +71,11 @@ void brctl_status_update(void) {
     if (sys_mgr_console_on()) {
         st.flags |= BRCTL_ST_CONSOLE_ON;
     }
+#ifdef IBLUE_BTN_MAP
+    sys_mgr_btn_get(st.btn_map, &st.btn_seq, &st.btn_last, &st.btn_stage);
+#else
+    st.btn_last = 0xFF;
+#endif
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
     iblue_led_get_rgb(st.led_rgb);
     st.led_preset = iblue_led_get_preset();
@@ -200,6 +205,14 @@ void brctl_exec(struct raw_fb *fb_data) {
             remove(tmp_str);
             break;
         }
+#ifdef IBLUE_BTN_MAP
+        case BRCTL_OP_BTN_SET:
+            sys_mgr_btn_set(args[0], args[1], args[2] & 1);
+            break;
+        case BRCTL_OP_BTN_DEFAULTS:
+            sys_mgr_btn_defaults(args[0] & 1);
+            break;
+#endif
         case BRCTL_OP_ADAPTER_RESET:
             sys_mgr_cmd(SYS_MGR_CMD_ADAPTER_RST);
             break;

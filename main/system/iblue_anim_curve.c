@@ -125,27 +125,22 @@ uint32_t iblue_anim_duty(uint32_t elapsed_ms, uint32_t total_ms, int led) {
 }
 
 uint32_t iblue_anim_intro_duty(uint32_t ms, int led) {
-    static const int slot_of[IBLUE_ANIM_LEDS] = {0, 2, 1, 3}; /* A, C, B, D */
-    uint32_t start;
+    uint32_t fade_at;
     float level;
 
     if (led < 0 || led >= IBLUE_ANIM_LEDS) {
         return 0;
     }
-    start = (uint32_t)slot_of[led] * IBLUE_ANIM_INTRO_SLOT_MS;
-    if (ms < start || ms >= start + IBLUE_ANIM_INTRO_FADE_MS) {
+    if (ms < IBLUE_ANIM_INTRO_A_MS) {
+        return led == 0 ? IBLUE_ANIM_MAX : 0;
+    }
+    fade_at = IBLUE_ANIM_INTRO_FADE_AT_MS + (uint32_t)led * IBLUE_ANIM_INTRO_STAGGER_MS;
+    if (ms < fade_at) {
+        return IBLUE_ANIM_MAX;
+    }
+    if (ms >= fade_at + IBLUE_ANIM_INTRO_FADE_MS) {
         return 0;
     }
-    level = 1.0f - (float)(ms - start) / (float)IBLUE_ANIM_INTRO_FADE_MS; /* what the eye sees: full, then down */
-    return (uint32_t)(powf(level, GAMMA) * (float)IBLUE_ANIM_MAX + 0.5f);
-}
-
-uint32_t iblue_anim_intro_all_duty(uint32_t ms) {
-    float level;
-
-    if (ms >= IBLUE_ANIM_INTRO_ALL_MS) {
-        return 0;
-    }
-    level = 1.0f - (float)ms / (float)IBLUE_ANIM_INTRO_ALL_MS;
+    level = 1.0f - (float)(ms - fade_at) / (float)IBLUE_ANIM_INTRO_FADE_MS; /* what the eye sees: full, then down */
     return (uint32_t)(powf(level, GAMMA) * (float)IBLUE_ANIM_MAX + 0.5f);
 }

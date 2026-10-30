@@ -25,6 +25,14 @@
  * `total_ms`. It fades in and out at the ends and is dark from total_ms on. */
 uint32_t iblue_anim_duty(uint32_t elapsed_ms, uint32_t total_ms, int led);
 
+/* The intro that comes before the drops: A is lit at once (the port A pin lights by itself while the chip
+ * starts, so this carries on from it) and fades out, then C, B and D each come on at full brightness and
+ * fade out, one after the other. Duty of one LED `ms` into the intro; 0 from IBLUE_ANIM_INTRO_MS on. */
+#define IBLUE_ANIM_INTRO_SLOT_MS 350  /* from one LED lighting to the next */
+#define IBLUE_ANIM_INTRO_FADE_MS 500  /* how long one LED takes to fade out */
+#define IBLUE_ANIM_INTRO_MS (3 * IBLUE_ANIM_INTRO_SLOT_MS + IBLUE_ANIM_INTRO_FADE_MS)
+uint32_t iblue_anim_intro_duty(uint32_t ms, int led);
+
 /* How bright calm water is at u (0 .. 1 over the animation): it comes in, is raised after about a third and
  * is eased out to nothing at the end. For the preview drawings and the tests. */
 float iblue_anim_calm(float u);

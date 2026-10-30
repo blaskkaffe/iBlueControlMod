@@ -123,3 +123,19 @@ uint32_t iblue_anim_duty(uint32_t elapsed_ms, uint32_t total_ms, int led) {
     v *= master(u);
     return (uint32_t)(powf(v, GAMMA) * (float)IBLUE_ANIM_MAX + 0.5f);
 }
+
+uint32_t iblue_anim_intro_duty(uint32_t ms, int led) {
+    static const int slot_of[IBLUE_ANIM_LEDS] = {0, 2, 1, 3}; /* A, C, B, D */
+    uint32_t start;
+    float level;
+
+    if (led < 0 || led >= IBLUE_ANIM_LEDS) {
+        return 0;
+    }
+    start = (uint32_t)slot_of[led] * IBLUE_ANIM_INTRO_SLOT_MS;
+    if (ms < start || ms >= start + IBLUE_ANIM_INTRO_FADE_MS) {
+        return 0;
+    }
+    level = 1.0f - (float)(ms - start) / (float)IBLUE_ANIM_INTRO_FADE_MS; /* what the eye sees: full, then down */
+    return (uint32_t)(powf(level, GAMMA) * (float)IBLUE_ANIM_MAX + 0.5f);
+}

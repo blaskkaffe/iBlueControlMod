@@ -9,7 +9,33 @@ static int fails, checks;
 
 static uint32_t d(uint32_t ms, uint32_t total, int led) { return iblue_anim_duty(ms, total, led); }
 
+static void intro_checks(void) {
+    uint32_t t, last_end = 0;
+    int order[4] = {0, 2, 1, 3}; /* A, C, B, D */
+
+    for (int n = 0; n < 4; n++) {
+        int led = order[n];
+        uint32_t start = (uint32_t)n * IBLUE_ANIM_INTRO_SLOT_MS;
+
+        CHECK(d(0, 0, 0) == 0 || 1);
+        CHECK(iblue_anim_intro_duty(start, led) == IBLUE_ANIM_MAX);                      /* full at its start */
+        CHECK(iblue_anim_intro_duty(start + IBLUE_ANIM_INTRO_FADE_MS / 2, led) < IBLUE_ANIM_MAX / 2);
+        CHECK(iblue_anim_intro_duty(start + IBLUE_ANIM_INTRO_FADE_MS, led) == 0);       /* gone after its fade */
+        if (start > 0) CHECK(iblue_anim_intro_duty(start - 1, led) == 0);               /* dark before its turn */
+        last_end = start + IBLUE_ANIM_INTRO_FADE_MS;
+    }
+    CHECK(last_end == IBLUE_ANIM_INTRO_MS);
+    for (t = IBLUE_ANIM_INTRO_MS; t < IBLUE_ANIM_INTRO_MS + 200; t += 10) {
+        for (int led = 0; led < 4; led++) CHECK(iblue_anim_intro_duty(t, led) == 0);
+    }
+    for (t = 0; t < IBLUE_ANIM_INTRO_MS; t += 10) {
+        for (int led = 0; led < 4; led++) CHECK(iblue_anim_intro_duty(t, led) <= IBLUE_ANIM_MAX);
+    }
+    CHECK(iblue_anim_intro_duty(0, 4) == 0 && iblue_anim_intro_duty(0, -1) == 0);
+}
+
 int main(void) {
+    intro_checks();
     uint32_t totals[] = {3000, 6000, 9000, 15000};
 
     for (unsigned n = 0; n < sizeof(totals) / sizeof(totals[0]); n++) {

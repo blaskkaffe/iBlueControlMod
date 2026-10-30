@@ -83,6 +83,14 @@ menu "BlueRetro"
             then show the real state (a lit LED per connected controller). Port LEDs never blink
             unless a Bluetooth controller is connected.
 
+    config BLUERETRO_IBLUE_BOOT_INTRO
+        bool "iBlueControlMod: port LEDs A, C, B, D light up and fade out in turn before the drops"
+        depends on BLUERETRO_IBLUE_BOOT_ANIM
+        default y
+        help
+            Port A's pin lights by itself while the chip starts. The intro carries on from it: A fades out,
+            then C, B and D each come on at full brightness and fade out, then the boot animation.
+
     config BLUERETRO_IBLUE_BOOT_ANIM_MS
         int "iBlueControlMod: length of the Dreamcast BIOS boot animation (ms)"
         depends on BLUERETRO_IBLUE_BOOT_ANIM

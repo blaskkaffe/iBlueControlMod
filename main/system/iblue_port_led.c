@@ -34,6 +34,7 @@ static float level[IBLUE_ANIM_LEDS];
 static volatile bool anim_active;
 static volatile int64_t anim_t0_us;
 static volatile uint32_t anim_start_ms;
+static volatile uint32_t intro_ms; /* length of the intro of the running animation, 0 = none */
 static bool inited;
 
 static void attach(uint32_t i) {
@@ -53,6 +54,7 @@ static void port_led_task(void *arg) {
         if (anim_active) {
             uint32_t run = (uint32_t)((esp_timer_get_time() - anim_t0_us) / 1000);
             uint32_t elapsed = anim_start_ms + run;
+            uint32_t intro = intro_ms;
 
             if (elapsed >= total) {
                 anim_active = false; /* the real state takes over below, from dark */
@@ -60,12 +62,20 @@ static void port_led_task(void *arg) {
                     level[i] = 0.0f;
                 }
             }
+            else if (run < intro) {
+                /* A, C, B, D light up in turn and fade out, then the drops */
+                for (uint32_t i = 0; i < led_count; i++) {
+                    put(i, iblue_anim_intro_duty(run, (int)i) * CONFIG_BLUERETRO_IBLUE_LED_MAX_PCT / 100);
+                }
+            }
             else {
+                uint32_t since = run - intro;
+
                 for (uint32_t i = 0; i < led_count; i++) {
                     uint32_t duty = iblue_anim_duty(elapsed, total, (int)i);
 
-                    if (run < ANIM_FADE_IN_MS) {
-                        duty = duty * run / ANIM_FADE_IN_MS;
+                    if (since < ANIM_FADE_IN_MS) {
+                        duty = duty * since / ANIM_FADE_IN_MS;
                     }
                     put(i, duty * CONFIG_BLUERETRO_IBLUE_LED_MAX_PCT / 100);
                 }
@@ -136,6 +146,12 @@ void iblue_port_led_boot_anim(uint32_t elapsed_ms) {
         attach(i);
     }
     anim_start_ms = elapsed_ms;
+#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_INTRO
+    /* only when the drops still get a good time after it; real time goes on while it plays */
+    intro_ms = (elapsed_ms + IBLUE_ANIM_INTRO_MS + 2000 < CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_MS) ? IBLUE_ANIM_INTRO_MS : 0;
+#else
+    intro_ms = 0;
+#endif
     anim_t0_us = esp_timer_get_time();
     anim_active = true;
 }

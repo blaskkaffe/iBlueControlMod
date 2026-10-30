@@ -23,18 +23,30 @@
 #define IMAGES 2            /* mirror images of a drop on each side: the walls */
 
 struct drop {
-    float at;   /* time of the impact, fraction of the animation */
+    float at;   /* time of the impact, seconds */
     float x;    /* where, 0..WIDTH */
     float amp;
     float soft; /* 1 = as the others; more = a broader, slower swell: longer wavelength, wider front */
 };
 
-/* The first one lands in the middle and is the big one; two smaller ones follow */
-static const struct drop drops[] = {
-    {0.04f, 2.00f, 0.70f, 1.5f},
-    {0.33f, 0.85f, 0.90f, 1.0f},
-    {0.62f, 3.20f, 0.95f, 1.0f},
-};
+#define FIRST_DROP 0.04f    /* the first drop falls at this fraction of the animation */
+#define DROP_GAP_S 1.74f    /* seconds between drops */
+#define LAST_DROP 0.75f     /* no new drop after this fraction of the animation */
+/* Where the drops fall: the first in the middle, then to either side */
+static const float drop_x[] = {2.00f, 0.85f, 3.20f, 1.30f, 2.85f, 0.55f, 3.45f};
+
+/* Drop k of an animation of total_s seconds, 0 if there is no such drop. The first one is the big, slow
+ * swell; the others follow at a steady pace. A longer animation just gets more of them. */
+static int drop_k(int k, float total_s, struct drop *d) {
+    d->at = FIRST_DROP * total_s + (float)k * DROP_GAP_S;
+    if (d->at > LAST_DROP * total_s) {
+        return 0;
+    }
+    d->x = drop_x[k % (int)(sizeof(drop_x) / sizeof(drop_x[0]))];
+    d->amp = k == 0 ? 0.70f : (k % 2 ? 0.90f : 0.95f);
+    d->soft = k == 0 ? 1.5f : 1.0f;
+    return 1;
+}
 
 static float clamp01(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x); }
 static float smooth(float x) { x = clamp01(x); return x * x * (3.0f - 2.0f * x); }
@@ -59,20 +71,21 @@ static float ripple(float r, float age, float soft) {
 /* Height of the water at x, t seconds into the animation */
 static float height(float x, float t, float total_s) {
     float h = 0.0f;
+    struct drop dr;
 
-    for (unsigned i = 0; i < sizeof(drops) / sizeof(drops[0]); i++) {
-        float age = t - drops[i].at * total_s;
+    for (int i = 0; drop_k(i, total_s, &dr); i++) {
+        float age = t - dr.at;
 
         if (age < 0.0f) {
             continue;
         }
         /* the drop and its mirror images in the two walls */
         for (int k = -IMAGES; k <= IMAGES; k++) {
-            float a = 2.0f * WIDTH * (float)k + drops[i].x;
-            float b = 2.0f * WIDTH * (float)k - drops[i].x;
+            float a = 2.0f * WIDTH * (float)k + dr.x;
+            float b = 2.0f * WIDTH * (float)k - dr.x;
 
-            h += drops[i].amp * ripple(dist(x - a), age, drops[i].soft);
-            h += drops[i].amp * ripple(dist(x - b), age, drops[i].soft);
+            h += dr.amp * ripple(dist(x - a), age, dr.soft);
+            h += dr.amp * ripple(dist(x - b), age, dr.soft);
         }
     }
     return h;

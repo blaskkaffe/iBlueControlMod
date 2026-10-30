@@ -10,7 +10,7 @@ static int fails, checks;
 static uint32_t d(uint32_t ms, uint32_t total, int led) { return iblue_anim_duty(ms, total, led); }
 
 int main(void) {
-    uint32_t totals[] = {3000, 6000, 9000};
+    uint32_t totals[] = {3000, 6000, 9000, 15000};
 
     for (unsigned n = 0; n < sizeof(totals) / sizeof(totals[0]); n++) {
         uint32_t total = totals[n], peak[4] = {0}, prev[4] = {0}, maxstep = 0;

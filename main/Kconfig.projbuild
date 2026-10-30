@@ -87,7 +87,7 @@ menu "BlueRetro"
         int "iBlueControlMod: length of the Dreamcast BIOS boot animation (ms)"
         depends on BLUERETRO_IBLUE_BOOT_ANIM
         range 1000 20000
-        default 6000
+        default 9000
         help
             Time from the console power-on until the boot animation ends. Measure it with a
             stopwatch on your console and set it here.

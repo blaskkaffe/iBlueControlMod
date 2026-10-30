@@ -90,6 +90,9 @@ static void wl_init_task(void *arg) {
     cov_init();
 #endif
 
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+    sys_mgr_iblue_early();
+#endif
     err_led_init(chip_package);
 
     core0_stall_init();

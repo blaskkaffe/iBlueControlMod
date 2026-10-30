@@ -225,6 +225,9 @@ void iblue_led_init(void) {
         .freq_hz = IBLUE_LED_FREQ_HZ,
         .clk_cfg = LEDC_AUTO_CLK,
     };
+    if (init_done) {
+        return;
+    }
     ledc_timer_config(&timer);
 
     apply_preset(load_color());

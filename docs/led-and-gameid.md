@@ -27,7 +27,7 @@ Three colours: **orange** (default), **blue** and **custom**.
 
 ## Boot animation: drops falling on water
 
-When the console powers on the four port LEDs run the animation for the length of the BIOS boot animation, then show the real state. Details of the shape (ripples, the rising and falling water level, drop schedule) are in [led-behaviour.md](led-behaviour.md). Settings: `BLUERETRO_IBLUE_BOOT_ANIM` (on), `BLUERETRO_IBLUE_BOOT_ANIM_MS` (**6000, a guess: time your console and set it**), `BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS` (700, the adapter's own start-up, also a guess).
+The LEDs are taken over first thing at start-up (`sys_mgr_iblue_early()`, before the file system and Bluetooth start, which used to take seconds with the pins in their power-up state). When the console powers on the four port LEDs run the animation for the length of the BIOS boot animation, then show the real state. Details of the shape (ripples, the rising and falling water level, drop schedule) are in [led-behaviour.md](led-behaviour.md). Settings: `BLUERETRO_IBLUE_BOOT_ANIM` (on), `BLUERETRO_IBLUE_BOOT_ANIM_MS` (**9000, a guess: time your console and set it**), `BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS` (700, the adapter's own start-up, also a guess).
 
 ## Dreamcast game id
 

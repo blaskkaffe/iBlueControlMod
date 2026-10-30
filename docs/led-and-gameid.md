@@ -60,3 +60,6 @@ Both LED tasks ran at priority 4 on core 0, below `wl_init_task` (10), which mou
 
 ## Why only A and B lit (22a2bdd)
 `sys_mgr_init` runs `gpio_config()` on the port LED pins after the intro has started; in ESP-IDF that turns a pin into a plain GPIO output and disconnects it from its LEDC channel. The pins went dark about 1.2 s in (after A and B), and the animation only came back when the start-up path attached them again, 2 to 3 s in. `iblue_port_led_reclaim()` now runs right after that loop. Also, `sys_mgr_iblue_pins_off()` leaves port A lit (it is lit by the chip anyway): the video showed a dip between the chip's A blink and the intro's A.
+
+## Power LED during the boot animation
+The power LED stays solid in its colour while the boot animation (intro and drops) plays: the pairing "breathing" and the connecting blink wait until it is over (button feedback and the tap dips still show). Before this the pairing window, which opens at power-on, made the power LED breathe from the start.

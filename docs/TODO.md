@@ -11,3 +11,7 @@ Left out of the test firmware on purpose, to come later:
 - **Plain HW1/HW2 builds** with these features (`dreamcast_openmenu` configs exist on `claude/restructure`).
 - **Docs**: remove the `iblue-v1.9` branch text from `docs/README_iBlueControlMod.md` (no such branch on GitHub, and no 1.9 firmware is shipped).
 - A port D (or any port) that is always there but not a controller, so the adapter can be reached with no Bluetooth controller (discussed, skipped).
+
+## Status after the web config
+- Tap actions: single and triple tap default to nothing; every tap can be mapped in the hosted web config (`web/`, iblue.html).
+- Whole-config profiles (4 slots) are saved/loaded from the web config over BLE. Still TODO: switching profiles with a controller hotkey or from openMenu.

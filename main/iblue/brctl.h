@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "sdkconfig.h"
-#include "brctl_proto.h"
+#include "iblue/brctl_proto.h"
 
 #ifdef CONFIG_BLUERETRO_BRCTL
 struct raw_fb;

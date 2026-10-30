@@ -18,8 +18,8 @@
 #include "system/gpio.h"
 #include "system/intr.h"
 #include "maple.h"
-#include "system/brctl.h"
-#include "system/vmu_lcd.h"
+#include "iblue/brctl.h"
+#include "iblue/vmu_lcd.h"
 
 #define ID_CTRL    0x00000001
 #define ID_VMU_MEM 0x00000002

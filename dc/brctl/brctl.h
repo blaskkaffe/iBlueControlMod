@@ -39,6 +39,11 @@ int brctl_read(int port, uint8_t item, uint32_t offset, void *buf, uint32_t len)
 int brctl_write(int port, uint8_t item, uint32_t offset, const void *buf, uint32_t len);
 int brctl_op(int port, uint32_t op, uint32_t arg0, uint32_t arg1, uint32_t arg2);
 
+/* An operation that runs later on the adapter (profiles, game config, config save ...): sends it,
+ * waits until it has finished (status.op_seq changes, up to about a second) and returns the
+ * BRCTL_RES_* of it in *result (may be NULL). Returns BRCTL_OK, or a BRCTL_E* if it never answered. */
+int brctl_op_wait(int port, uint32_t op, uint32_t arg0, uint32_t arg1, uint32_t arg2, int *result);
+
 /* Whole BlueRetro config (same struct as blueretro.io) */
 int brctl_config_load(int port, struct br_config *cfg);
 /* Writes the whole struct and asks the adapter to apply + persist it */

@@ -23,6 +23,8 @@ void sys_mgr_cmd(uint8_t cmd);
 void sys_mgr_init(uint32_t package);
 #include <stdbool.h>
 bool sys_mgr_console_on(void);
+/* 1 when the board senses a physical controller in this output port */
+uint32_t sys_mgr_port_plugged(uint32_t index);
 
 #if defined(CONFIG_BLUERETRO_HW_IBLUECONTROLMOD) && (CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S > 0)
 #define IBLUE_PAIR_WINDOW 1
@@ -30,14 +32,6 @@ bool sys_mgr_console_on(void);
 void sys_mgr_pair_window_open(void);
 bool sys_mgr_pairing_allowed(void);
 uint32_t sys_mgr_pair_window_left_s(void);
-#endif
-
-#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
-/* Remappable button / touch sensor gestures (see brctl_proto.h) */
-#define IBLUE_BTN_MAP 1
-void sys_mgr_btn_set(uint32_t gesture, uint32_t action, bool persist);
-void sys_mgr_btn_defaults(bool persist);
-void sys_mgr_btn_get(uint8_t *map8, uint16_t *seq, uint8_t *last, uint8_t *stage);
 #endif
 
 

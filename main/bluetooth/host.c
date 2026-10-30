@@ -32,7 +32,7 @@
 #include "adapter/wired/wired.h"
 #include "adapter/hid_parser.h"
 #include "bluetooth/hidp/ps.h"
-#include "system/brctl.h"
+#include "iblue/brctl.h"
 
 #define BT_TX 0
 #define BT_RX 1

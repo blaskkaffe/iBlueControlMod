@@ -29,9 +29,10 @@
 #include "bare_metal_app_cpu.h"
 #include "manager.h"
 #include "esp_timer.h"
-#include "system/iblue_led.h"
-#include "system/brctl.h"
-#include "system/brctl_proto.h"
+#include "iblue/iblue_led.h"
+#include "iblue/brctl.h"
+#include "iblue/brctl_proto.h"
+#include "iblue/button_map.h"
 #include <nvs.h>
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
@@ -142,6 +143,13 @@ static const sys_mgr_cmd_t sys_mgr_cmds[] = {
     sys_mgr_esp_restart,
     sys_mgr_wired_reset,
 };
+
+static inline uint32_t sense_port_is_empty(uint32_t index);
+
+/* 1 when the board senses a physical controller in this output port */
+uint32_t sys_mgr_port_plugged(uint32_t index) {
+    return index < hw_config.port_cnt && !sense_port_is_empty(index);
+}
 
 static inline uint32_t sense_port_is_empty(uint32_t index) {
 #ifdef CONFIG_BLUERETRO_HW2
@@ -470,81 +478,6 @@ static void wired_port_hdl(void) {
 }
 
 #ifdef IBLUE_BTN_MAP
-static const uint8_t btn_default_act[BRCTL_GEST_MAX] = {
-    [BRCTL_GEST_TAP] = BRCTL_ACT_PAIR,
-    [BRCTL_GEST_DOUBLE_TAP] = BRCTL_ACT_LED_NEXT,
-    [BRCTL_GEST_TAP_HOLD] = BRCTL_ACT_LED_ADJUST,
-    [BRCTL_GEST_HOLD_3S] = BRCTL_ACT_PAIR_STOP_OR_DISCONNECT,
-    [BRCTL_GEST_HOLD_6S] = BRCTL_ACT_PAIR,
-    [BRCTL_GEST_HOLD_10S] = BRCTL_ACT_FACTORY_RESET,
-};
-static uint8_t btn_map[8]; /* BRCTL_ACT_DEFAULT (0) = built-in action */
-static volatile uint16_t btn_seq;
-static volatile uint8_t btn_last = 0xFF;
-static volatile uint8_t btn_stage;
-
-static uint32_t btn_action(uint32_t gesture) {
-    uint32_t act = btn_map[gesture];
-
-    if (act == BRCTL_ACT_DEFAULT || act >= BRCTL_ACT_MAX) {
-        act = btn_default_act[gesture];
-    }
-    return act;
-}
-
-static void btn_map_load(void) {
-    nvs_handle_t nvs;
-    size_t len = sizeof(btn_map);
-
-    if (nvs_open("iblue", NVS_READONLY, &nvs) == ESP_OK) {
-        if (nvs_get_blob(nvs, "btn_map", btn_map, &len) != ESP_OK) {
-            memset(btn_map, 0, sizeof(btn_map));
-        }
-        nvs_close(nvs);
-    }
-}
-
-static void btn_map_save(void) {
-    nvs_handle_t nvs;
-
-    if (nvs_open("iblue", NVS_READWRITE, &nvs) == ESP_OK) {
-        nvs_set_blob(nvs, "btn_map", btn_map, sizeof(btn_map));
-        nvs_commit(nvs);
-        nvs_close(nvs);
-    }
-}
-
-void sys_mgr_btn_set(uint32_t gesture, uint32_t action, bool persist) {
-    if (gesture < BRCTL_GEST_MAX && action < BRCTL_ACT_MAX) {
-        btn_map[gesture] = action;
-        if (persist) {
-            btn_map_save();
-        }
-    }
-}
-
-void sys_mgr_btn_defaults(bool persist) {
-    memset(btn_map, 0, sizeof(btn_map));
-    if (persist) {
-        btn_map_save();
-    }
-}
-
-void sys_mgr_btn_get(uint8_t *map8, uint16_t *seq, uint8_t *last, uint8_t *stage) {
-    for (uint32_t i = 0; i < 8; i++) {
-        map8[i] = (i < BRCTL_GEST_MAX) ? btn_action(i) : 0;
-    }
-    *seq = btn_seq;
-    *last = btn_last;
-    *stage = btn_stage;
-}
-
-static void btn_report(uint32_t gesture) {
-    btn_last = gesture;
-    btn_seq++;
-    printf("# %s: gesture %ld -> action %ld\n", __FUNCTION__, gesture, btn_action(gesture));
-}
-
 static void btn_exec(uint32_t action) {
     switch (action) {
         case BRCTL_ACT_PAIR:
@@ -602,19 +535,19 @@ static void boot_btn_hdl(void) {
             uint32_t held = 0;
 
             check_qdp = 0;
-            btn_stage = 1;
+            iblue_btn_stage(1);
             while (sys_mgr_get_boot_btn() && held < 60) {
                 vTaskDelay(10 / portTICK_PERIOD_MS);
                 held++;
             }
             if (held < 60) {
-                btn_stage = 0;
-                btn_report(BRCTL_GEST_DOUBLE_TAP);
-                btn_exec(btn_action(BRCTL_GEST_DOUBLE_TAP));
+                iblue_btn_stage(0);
+                iblue_btn_report(BRCTL_GEST_DOUBLE_TAP);
+                btn_exec(iblue_btn_action(BRCTL_GEST_DOUBLE_TAP));
             }
             else {
-                btn_report(BRCTL_GEST_TAP_HOLD);
-                if (btn_action(BRCTL_GEST_TAP_HOLD) == BRCTL_ACT_LED_ADJUST) {
+                iblue_btn_report(BRCTL_GEST_TAP_HOLD);
+                if (iblue_btn_action(BRCTL_GEST_TAP_HOLD) == BRCTL_ACT_LED_ADJUST) {
                     iblue_led_sweep_start();
                     while (sys_mgr_get_boot_btn()) {
                         vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -625,9 +558,9 @@ static void boot_btn_hdl(void) {
                     while (sys_mgr_get_boot_btn()) {
                         vTaskDelay(10 / portTICK_PERIOD_MS);
                     }
-                    btn_exec(btn_action(BRCTL_GEST_TAP_HOLD));
+                    btn_exec(iblue_btn_action(BRCTL_GEST_TAP_HOLD));
                 }
-                btn_stage = 0;
+                iblue_btn_stage(0);
             }
             inhibit_cnt = 50;
         }
@@ -652,7 +585,7 @@ static void boot_btn_hdl(void) {
 
         while (sys_mgr_get_boot_btn()) {
 #ifdef IBLUE_BTN_MAP
-            btn_stage = state + 1;
+            iblue_btn_stage(state + 1);
 #endif
             hold_cnt++;
             if (hold_cnt > (hw_config.sw_io0_hold_thres_ms[state] / 10) && state < SYS_MGR_BTN_STATE3) {
@@ -678,11 +611,11 @@ static void boot_btn_hdl(void) {
         }
 
 #ifdef IBLUE_BTN_MAP
-        btn_stage = 0;
+        iblue_btn_stage(0);
         if (sys_mgr_get_power() && factory_reset) {
             /* Held >= 30 s: always factory reset + return to the vendor
              * firmware, whatever the mapping (recovery path) */
-            btn_report(BRCTL_GEST_HOLD_10S);
+            iblue_btn_report(BRCTL_GEST_HOLD_10S);
             sys_mgr_factory_reset();
         }
         else if (sys_mgr_get_power()) {
@@ -691,8 +624,8 @@ static void boot_btn_hdl(void) {
             };
             uint32_t gesture = state_to_gesture[(state > 3) ? 3 : state];
 
-            btn_report(gesture);
-            btn_exec(btn_action(gesture));
+            iblue_btn_report(gesture);
+            btn_exec(iblue_btn_action(gesture));
             if (gesture == BRCTL_GEST_TAP) {
                 check_qdp = 1;
             }
@@ -1130,7 +1063,7 @@ void sys_mgr_init(uint32_t package) {
 #endif /* CONFIG_BLUERETRO_HW2 */
 
 #ifdef IBLUE_BTN_MAP
-    btn_map_load();
+    iblue_btn_load();
 #endif
 #ifdef CONFIG_BLUERETRO_BRCTL
     brctl_init();

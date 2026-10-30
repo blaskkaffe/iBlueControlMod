@@ -14,17 +14,66 @@
 #include "adapter/adapter.h"
 #include "adapter/config.h"
 #include "adapter/gameid.h"
+#include "zephyr/types.h"
+#include "tools/util.h"
 #include "bluetooth/host.h"
 #include "bluetooth/hci.h"
 #include "system/manager.h"
-#include "system/iblue_led.h"
-#include "brctl.h"
+#include "iblue/iblue_led.h"
+#include "iblue/button_map.h"
+#include "iblue/input.h"
+#include "iblue/profile.h"
+#include "iblue/brctl.h"
 
 #ifdef CONFIG_BLUERETRO_BRCTL
 
 /* Plain DRAM (not const/flash): read from the Maple ISR */
 static DRAM_ATTR struct brctl_info info;
 static DRAM_ATTR struct brctl_status status;
+static DRAM_ATTR struct brctl_profiles profiles_view;
+static DRAM_ATTR struct brctl_game game_view;
+static uint16_t op_seq;
+static uint8_t op_result;
+
+/* A write from the console can leave the config in a state the adapter must not run on (a map
+ * size past the table, an output port that does not exist). The console writes whole entries and
+ * is expected to be careful; this is the net under it: check at save, clamp in between. */
+static bool config_valid(void) {
+    if (config.magic != CONFIG_MAGIC || config.global_cfg.inquiry_mode > INQ_MANUAL) {
+        return false;
+    }
+    for (uint32_t i = 0; i < WIRED_MAX_DEV; i++) {
+        if (config.out_cfg[i].dev_mode > DEV_MOUSE || config.out_cfg[i].acc_mode > ACC_BOTH ||
+                config.in_cfg[i].map_size > ADAPTER_MAPPING_MAX) {
+            return false;
+        }
+        for (uint32_t j = 0; j < config.in_cfg[i].map_size; j++) {
+            if (config.in_cfg[i].map_cfg[j].dst_id >= WIRED_MAX_DEV) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static void config_clamp(void) {
+    for (uint32_t i = 0; i < WIRED_MAX_DEV; i++) {
+        if (config.out_cfg[i].dev_mode > DEV_MOUSE) config.out_cfg[i].dev_mode = DEV_PAD;
+        if (config.out_cfg[i].acc_mode > ACC_BOTH) config.out_cfg[i].acc_mode = ACC_NONE;
+        if (config.in_cfg[i].map_size > ADAPTER_MAPPING_MAX) config.in_cfg[i].map_size = ADAPTER_MAPPING_MAX;
+        for (uint32_t j = 0; j < config.in_cfg[i].map_size; j++) {
+            if (config.in_cfg[i].map_cfg[j].dst_id >= WIRED_MAX_DEV) config.in_cfg[i].map_cfg[j].dst_id = i;
+        }
+    }
+    if (config.global_cfg.inquiry_mode > INQ_MANUAL) config.global_cfg.inquiry_mode = INQ_AUTO;
+}
+
+static void views_refresh(void) {
+#ifdef CONFIG_BLUERETRO_IBLUE_PROFILES
+    iblue_profile_list(&profiles_view);
+    iblue_game_info(&game_view);
+#endif
+}
 
 void brctl_init(void) {
     const esp_app_desc_t *app_desc = esp_app_get_description();
@@ -44,11 +93,17 @@ void brctl_init(void) {
 #ifdef IBLUE_PAIR_WINDOW
     info.features |= BRCTL_FEAT_PAIR_WINDOW;
 #endif
+#ifdef CONFIG_BLUERETRO_IBLUE_PROFILES
+    info.features |= BRCTL_FEAT_PROFILES;
+#endif
     strncpy(info.fw_version, app_desc->version, sizeof(info.fw_version) - 1);
     strncpy(info.fw_name, app_desc->project_name, sizeof(info.fw_name) - 1);
 
     memset(&status, 0, sizeof(status));
     status.magic = BRCTL_STATUS_MAGIC;
+    memset(&profiles_view, 0, sizeof(profiles_view));
+    memset(&game_view, 0, sizeof(game_view));
+    views_refresh();
     brctl_status_update();
     printf("# %s: Maple control channel ready (proto %d, config %d bytes)\n",
         __FUNCTION__, BRCTL_PROTO_VER, info.config_size);
@@ -72,7 +127,7 @@ void brctl_status_update(void) {
         st.flags |= BRCTL_ST_CONSOLE_ON;
     }
 #ifdef IBLUE_BTN_MAP
-    sys_mgr_btn_get(st.btn_map, &st.btn_seq, &st.btn_last, &st.btn_stage);
+    iblue_btn_get(st.btn_map, &st.btn_seq, &st.btn_last, &st.btn_stage);
 #else
     st.btn_last = 0xFF;
 #endif
@@ -92,7 +147,14 @@ void brctl_status_update(void) {
             st.port_bt_type[i] = device->ids.type;
             st.port_bt_subtype[i] = device->ids.subtype;
         }
+        if (sys_mgr_port_plugged(i)) {
+            st.plugged_mask |= BIT(i);
+        }
+        st.live[i] = iblue_input_live(i);
     }
+    st.op_seq = op_seq;
+    st.op_result = op_result;
+    config_clamp();
     /* Single copy, ISR may observe a torn struct at worst for one poll */
     memcpy(&status, &st, sizeof(status));
 }
@@ -116,6 +178,14 @@ uint32_t IRAM_ATTR brctl_read(uint32_t param, uint32_t len, void *dst) {
             base = (uint8_t *)&config;
             size = sizeof(config);
             break;
+        case BRCTL_ITEM_PROFILES:
+            base = (uint8_t *)&profiles_view;
+            size = sizeof(profiles_view);
+            break;
+        case BRCTL_ITEM_GAME:
+            base = (uint8_t *)&game_view;
+            size = sizeof(game_view);
+            break;
         default:
             return 0;
     }
@@ -136,6 +206,13 @@ bool IRAM_ATTR brctl_write(uint32_t param, const void *src, uint32_t len) {
     uint32_t item = BRCTL_PARAM_ITEM(param);
     uint32_t off = BRCTL_PARAM_OFF(param);
 
+    if (item == BRCTL_ITEM_GAME) {
+        if (off & 3 || off > sizeof(game_view) || len > sizeof(game_view) - off) {
+            return false;
+        }
+        memcpy((uint8_t *)&game_view + off, src, len);
+        return true;
+    }
     if (item != BRCTL_ITEM_CONFIG || off & 3 || len > BRCTL_MAX_XFER
             || off > sizeof(config) || len > sizeof(config) - off) {
         return false;
@@ -164,6 +241,8 @@ void brctl_exec(struct raw_fb *fb_data) {
     uint32_t args[3];
 
     memcpy(args, &fb_data->data[1], sizeof(args));
+    uint32_t res = BRCTL_RES_OK;
+
     printf("# %s: op %ld args %08lX %08lX %08lX\n", __FUNCTION__, op, args[0], args[1], args[2]);
 
     switch (op) {
@@ -195,7 +274,13 @@ void brctl_exec(struct raw_fb *fb_data) {
             bt_host_disconnect_all();
             break;
         case BRCTL_OP_CONFIG_SAVE:
-            config_update(config_get_src());
+            if (config_valid()) {
+                config_update(config_get_src());
+            }
+            else {
+                config_init(config_get_src()); /* back to what is in flash */
+                res = BRCTL_RES_BAD;
+            }
             break;
         case BRCTL_OP_CONFIG_DEFAULT:
         {
@@ -207,18 +292,44 @@ void brctl_exec(struct raw_fb *fb_data) {
         }
 #ifdef IBLUE_BTN_MAP
         case BRCTL_OP_BTN_SET:
-            sys_mgr_btn_set(args[0], args[1], args[2] & 1);
+            iblue_btn_set(args[0], args[1], args[2] & 1);
             break;
         case BRCTL_OP_BTN_DEFAULTS:
-            sys_mgr_btn_defaults(args[0] & 1);
+            iblue_btn_defaults(args[0] & 1);
             break;
 #endif
         case BRCTL_OP_ADAPTER_RESET:
             sys_mgr_cmd(SYS_MGR_CMD_ADAPTER_RST);
             break;
+#ifdef CONFIG_BLUERETRO_IBLUE_PROFILES
+        case BRCTL_OP_PROFILE_SAVE:
+            res = iblue_profile_save(args[0], args[1]);
+            break;
+        case BRCTL_OP_PROFILE_LOAD:
+            res = iblue_profile_load(args[0], args[1], args[2] & 1);
+            break;
+        case BRCTL_OP_PROFILE_DELETE:
+            res = iblue_profile_delete(args[0]);
+            break;
+        case BRCTL_OP_GAME_SET:
+            game_view.id[sizeof(game_view.id) - 1] = '\0';
+            res = iblue_game_set(game_view.id);
+            break;
+        case BRCTL_OP_GAME_SAVE:
+            res = iblue_game_save();
+            break;
+        case BRCTL_OP_GAME_DELETE:
+            res = iblue_game_delete();
+            break;
+#endif
         default:
             break;
     }
+    if (op == BRCTL_OP_CONFIG_SAVE || op == BRCTL_OP_CONFIG_DEFAULT || op >= BRCTL_OP_PROFILE_SAVE) {
+        views_refresh();
+    }
+    op_result = (uint8_t)res;
+    op_seq++;
     brctl_status_update();
 }
 

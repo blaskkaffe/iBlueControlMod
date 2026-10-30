@@ -9,7 +9,7 @@
 
 #include <string.h>
 #include <esp_attr.h>
-#include "vmu_lcd.h"
+#include "iblue/vmu_lcd.h"
 
 /* Plain DRAM: written from the Maple ISR. Seqlock: seq is odd while the
  * writer is mid-copy. */

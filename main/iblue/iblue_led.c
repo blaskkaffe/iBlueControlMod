@@ -20,7 +20,7 @@
 #include "soc/io_mux_reg.h"
 #include "bluetooth/host.h"
 #include "bluetooth/hci.h"
-#include "iblue_led.h"
+#include "iblue/iblue_led.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 

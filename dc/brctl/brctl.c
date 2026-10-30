@@ -198,6 +198,32 @@ int brctl_op(int port, uint32_t op, uint32_t arg0, uint32_t arg1, uint32_t arg2)
     return (code == MAPLE_RESPONSE_OK) ? BRCTL_OK : BRCTL_EPROTO;
 }
 
+int brctl_op_wait(int port, uint32_t op, uint32_t arg0, uint32_t arg1, uint32_t arg2, int *result) {
+    struct brctl_status st;
+    uint16_t seq;
+    int ret = brctl_get_status(port, &st);
+
+    if (ret) {
+        return ret;
+    }
+    seq = st.op_seq;
+    ret = brctl_op(port, op, arg0, arg1, arg2);
+    if (ret) {
+        return ret;
+    }
+    for (int i = 0; i < 100; i++) {
+        thd_sleep(10);
+        ret = brctl_get_status(port, &st);
+        if (ret == BRCTL_OK && st.op_seq != seq) {
+            if (result) {
+                *result = st.op_result;
+            }
+            return BRCTL_OK;
+        }
+    }
+    return BRCTL_ETIMEOUT;
+}
+
 int brctl_get_info(int port, struct brctl_info *info) {
     int ret = brctl_read(port, BRCTL_ITEM_INFO, 0, info, sizeof(*info));
 

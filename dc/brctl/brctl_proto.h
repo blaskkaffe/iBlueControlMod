@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#define BRCTL_PROTO_VER 2
+#define BRCTL_PROTO_VER 3
 
 /* Function code in adapter (logical) byte order: bytes 'B' 'R' 'T' 'L' */
 #define BRCTL_FUNC 0x4C545242u
@@ -43,6 +43,8 @@ enum {
     BRCTL_ITEM_INFO = 0x01,     /* RO  struct brctl_info */
     BRCTL_ITEM_STATUS = 0x02,   /* RO  struct brctl_status */
     BRCTL_ITEM_CONFIG = 0x03,   /* RW  raw BlueRetro `struct config` (same as blueretro.io) */
+    BRCTL_ITEM_PROFILES = 0x04, /* RO  struct brctl_profiles */
+    BRCTL_ITEM_GAME = 0x05,     /* RW  struct brctl_game (write the id, then BRCTL_OP_GAME_SET) */
 };
 
 /* SET_COND operations (args are little-endian u32) */
@@ -58,6 +60,22 @@ enum {
     BRCTL_OP_ADAPTER_RESET = 0x08,  /* restart the adapter */
     BRCTL_OP_BTN_SET = 0x09,        /* arg0 = BRCTL_GEST_*, arg1 = BRCTL_ACT_*, arg2 bit0 = persist */
     BRCTL_OP_BTN_DEFAULTS = 0x0A,   /* restore default button actions, arg0 bit0 = persist */
+    BRCTL_OP_PROFILE_SAVE = 0x0B,   /* arg0 = slot 0..3, arg1 = port: keep the port's type + mapping */
+    BRCTL_OP_PROFILE_LOAD = 0x0C,   /* arg0 = slot, arg1 = port, arg2 bit0 = persist */
+    BRCTL_OP_PROFILE_DELETE = 0x0D, /* arg0 = slot */
+    BRCTL_OP_GAME_SET = 0x0E,       /* use the game id in ITEM_GAME: its own config if it has one */
+    BRCTL_OP_GAME_SAVE = 0x0F,      /* the live config becomes the game's */
+    BRCTL_OP_GAME_DELETE = 0x10,    /* the game uses the normal config again */
+};
+
+/* Result of the last finished operation (status.op_result). Operations run later on the
+ * adapter; status.op_seq counts finished ones, so wait for it to change. */
+enum {
+    BRCTL_RES_OK = 0,
+    BRCTL_RES_EMPTY = 1,    /* that profile slot has nothing saved */
+    BRCTL_RES_NO_GAME = 2,  /* no game id is set */
+    BRCTL_RES_BAD = 3,      /* argument or config rejected (the config is reloaded from flash) */
+    BRCTL_RES_FAILED = 4,   /* flash write failed */
 };
 
 /* Button / touch sensor gestures (status.btn_last, BRCTL_OP_BTN_SET) */
@@ -113,6 +131,7 @@ struct brctl_info {
 
 #define BRCTL_FEAT_RGB_LED 0x01
 #define BRCTL_FEAT_PAIR_WINDOW 0x02
+#define BRCTL_FEAT_PROFILES 0x04
 
 #define BRCTL_PORTS 4
 
@@ -130,7 +149,33 @@ struct brctl_status {
     uint8_t btn_last;           /* last BRCTL_GEST_*, 0xFF = none yet */
     uint8_t btn_stage;          /* live: 0 released, 1 pressed, 2 >3 s, 3 >6 s, 4 >10 s */
     uint8_t btn_map[8];         /* current BRCTL_ACT_* per gesture */
+    /* since protocol 3 */
+    uint16_t op_seq;            /* operations finished so far */
+    uint8_t op_result;          /* BRCTL_RES_* of the last one */
+    uint8_t plugged_mask;       /* bit n: the board senses a physical controller in port n */
+    uint32_t live[BRCTL_PORTS]; /* buttons held on the Bluetooth controller of the port (generic ids 0..31) */
 } __attribute__((packed));
+
+#define BRCTL_PROFILES 4
+#define BRCTL_PROFILES_MAGIC 0x46505242u    /* 'BRPF' */
+#define BRCTL_GAME_ID_MAX 12                /* characters: letters, digits, - and _ */
+
+struct brctl_profiles {
+    uint32_t magic;
+    uint8_t used[BRCTL_PROFILES];
+    uint8_t dev_mode[BRCTL_PROFILES];
+    uint8_t acc_mode[BRCTL_PROFILES];
+} __attribute__((packed));
+
+struct brctl_game {
+    char id[16];                /* NUL terminated, "" = none */
+    uint8_t flags;              /* bit0 id set, bit1 the game has its own config, bit2 it is in use */
+    uint8_t reserved[3];
+} __attribute__((packed));
+
+#define BRCTL_GAME_SET 0x01
+#define BRCTL_GAME_HAS_OWN 0x02
+#define BRCTL_GAME_IN_USE 0x04
 
 #define BRCTL_ST_PAIRING 0x0001         /* inquiry (pairing) running */
 #define BRCTL_ST_PAIR_ALLOWED 0x0002    /* inside the pairing window */

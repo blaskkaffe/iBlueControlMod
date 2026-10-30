@@ -40,7 +40,7 @@ The 30 s hold is your safety net: if a firmware update ever misbehaves, it takes
 
 ### Over Bluetooth (recommended, no wiring)
 
-1. Build the firmware (below), or use a prebuilt image if one is attached to a release.
+1. Download **[`firmware/BlueRetro_iBlueControlMod_RGB_v1.bin`](firmware/BlueRetro_iBlueControlMod_RGB_v1.bin)**. This is the build tested on hardware; see [firmware/](firmware/README.md). You can also build it yourself (below).
 2. Open the BlueRetro web config on [blueretro.io](https://blueretro.io) in Chrome or Edge, and connect to the adapter.
 3. Use the **OTA update** page to upload the `.bin`.
 

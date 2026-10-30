@@ -1,62 +1,120 @@
-**This repository has been archived and is no longer under active development or maintenance.**
+# BlueRetro for the iBlueControlMod (Dreamcast)
 
+Open-source firmware for the **iBlueControlMod**, the internal Bluetooth controller adapter for the SEGA Dreamcast sold on AliExpress and elsewhere. It's a fork of [BlueRetro](https://github.com/darthcloud/BlueRetro) by Jacques Gagnon (darthcloud), adapted to this board's wiring.
+
+The board runs a modified BlueRetro v1.9 from the factory, but its pins differ from official BlueRetro hardware. Flashing a stock BlueRetro image misdrives the button, LEDs and port detection, and can make the board look bricked. This fork maps every pin the way the vendor firmware does, so it's safe to flash on this hardware. It's based on the final upstream BlueRetro, which brings newer controller support and fixes.
+
+> **Branches**
+> - **`main`**: tested on real hardware. This is the build to use.
+> - **`development`**: the next features (openMenu control channel, remappable button gestures, user-adjustable LED colour). It has only been tested in an emulator so far.
+
+## What's different from the factory firmware
+
+| | Factory (vendor) firmware | This fork (`main`) |
+|---|---|---|
+| BlueRetro base | v1.9 (Oct 2023) | Final upstream (Dec 2025): newer controllers, fixes and config options |
+| RGB status LED | Blue, or blinking green/red | **Solid orange** (like the original Dreamcast power LED) or **blue**, your choice |
+| Pairing blink | Port LEDs blink forever until a controller connects | Pairing runs for **60 s** after the console starts, then stops. A **tap** on the button opens it again |
+| PS4/PS5 light bar | BlueRetro default colours | Follows the Dreamcast menu colours: **A orange, B green, C blue, D magenta** |
+| Already-paired controllers | Reconnect | Reconnect at any time, even outside the pairing window |
+| Web config / OTA on blueretro.io | Works | Works |
+
+Everything else behaves like normal BlueRetro on the Dreamcast: controllers, rumble, VMU emulation and the blueretro.io web config.
+
+## Button (or TTP223 touch sensor)
+
+| Action | What happens |
+|---|---|
+| **Tap** (under 3 s) | Opens the 60 s pairing window |
+| **Tap, then quickly tap again** | Switches the LED between orange and blue (remembered across power cycles) |
+| **Hold 3–6 s** | Stops pairing if it's running, otherwise disconnects all controllers |
+| **Hold 6–10 s** | Starts pairing |
+| **Hold 10–30 s** | Factory reset: erases settings, pairings and VMU saves (the LED colour is kept) |
+| **Hold 30 s or more** | The same reset, then **boots back into the factory vendor firmware** |
+
+While you hold the button, the LED blinks faster at each stage (2, 4, then 8 times a second), so you can see what will happen when you let go.
+
+The 30 s hold is your safety net: if a firmware update ever misbehaves, it takes you back to the vendor firmware still stored on the board.
+
+## Installing
+
+### Over Bluetooth (recommended, no wiring)
+
+1. Build the firmware (below), or use a prebuilt image if one is attached to a release.
+2. Open the BlueRetro web config on [blueretro.io](https://blueretro.io) in Chrome or Edge, and connect to the adapter.
+3. Use the **OTA update** page to upload the `.bin`.
+
+OTA only writes a spare app slot; the vendor firmware and bootloader are never touched. To go back, hold the button for 30 s.
+
+> If blueretro.io says **"Hardware and firmware mismatch"**, the image was built with the `hw2` tag. Rebuild with `BR_HW=` empty (see below). The vendor firmware isn't tagged `hw2`, so the OTA page refuses tagged images.
+
+### Over the debug header (UART)
+
+The board has an unpopulated 6-pin header next to the antenna. Pin 6, the square pad, is GND:
+
+| Pin | Signal |
+|---|---|
+| 1 | 3V3 |
+| 2 | GPIO0 (pull to GND for download mode) |
+| 3 | EN (reset) |
+| 4 | RXD0 (GPIO3) |
+| 5 | TXD0 (GPIO1) |
+| 6 | GND (square pad) |
+
+Connect a 3.3 V USB-serial adapter: its TX to pin 4 and its RX to pin 5. **Back up the whole flash first**:
+
+```sh
+esptool.py -p PORT -b 921600 read_flash 0 0x800000 iblue_full_backup.bin
 ```
-After 6 years working on BlueRetro, the time has come for me to move on
-and focus on my family and my real job.
 
-The code remains available as-is for reference, learning, and community use,
-but no new features, bug fixes, or pull requests will be accepted.
+Don't use `idf.py flash`, because it overwrites the bootloader and partition table. See [docs/README_iBlueControlMod.md](docs/README_iBlueControlMod.md#flashing-without-bricking) for the safe way to write only the app.
 
-Thank you to everyone who contributed, tested, reported issues,
-or supported the project over the years.
-Your involvement made BlueRetro what it is today.
+## Building
 
-If you are looking to build upon this work, please feel free to
-fork the repository in accordance with the license.
+Use the same ESP-IDF that upstream BlueRetro pins: `030c995` (v5.5-dev).
 
-Thank you,
-Jacques Gagnon
+```sh
+cp configs/hw2/dreamcast_iblue sdkconfig
+BR_HW= BR_SYS=_dreamcast_iblue idf.py reconfigure build
+# Output: build/BlueRetro.bin  (leave BR_HW empty, see the OTA note above)
 ```
 
-# BlueRetro
+| Build config | Use |
+|---|---|
+| `configs/hw2/dreamcast_iblue` | Normal build: RGB LED colours, pairing window, menu light-bar colours |
+| `configs/hw2/dreamcast_iblue_vendor` | Same pins, but the LED, pairing and light-bar behaviour of the factory firmware |
 
-<p align="center"><img src="/static/PNGs/BRE_Logo_Color_Outline.png" width="600"/></p>
-<br>
-<p align="justify">BlueRetro is a multiplayer Bluetooth controllers adapter for various retro game consoles & computers. Lost or broken controllers? Reproduction too expensive? Need those rare and obscure accessories? Just use the Bluetooth devices you already got! The project is open source hardware & software under the CERN-OHL-P-2.0 & Apache-2.0 licenses respectively. It's built for the popular ESP32 chip. Wii, Switch, PS3, PS4, PS5, Xbox One, Xbox Series X|S & generic HID Bluetooth (BR/EDR & LE) devices are supported. Parallel 1P (Computers, NeoGeo, Supergun, JAMMA, Handheld, etc), Parallel 2P (Atari 2600/7800, Master System, Computers, etc), NES, PCE / TG16, Mega Drive / Genesis, SNES, CD-i, 3DO, Jaguar, Saturn, PSX, PC-FX, JVS (Arcade), Virtual Boy, N64, Dreamcast, PS2, GameCube & Wii extension are supported with simultaneous 4+ players using a single adapter.</p>
+| Kconfig option | Default | Meaning |
+|---|---|---|
+| `CONFIG_BLUERETRO_HW_IBLUECONTROLMOD` | y | The iBlueControlMod pin map |
+| `CONFIG_BLUERETRO_IBLUE_RGB_LED` | y | RGB LED colour driver (R = GPIO25, G = GPIO14, B = GPIO13, common anode) |
+| `CONFIG_BLUERETRO_IBLUE_LED_ORANGE` / `_BLUE` | orange | Colour on first boot |
+| `CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S` | 60 | Seconds of pairing after power-on or a tap; 0 means always pairing (upstream behaviour) |
+| `CONFIG_BLUERETRO_IBLUE_DC_MENU_COLORS` | y | PS4/PS5 light bars in the Dreamcast menu colours |
 
-## READ THIS FIRST
-* [Project documentation](https://github.com/darthcloud/BlueRetro/wiki)
+## Hardware notes
 
-## Need help?
-* [Open a GitHub discussion](https://github.com/darthcloud/BlueRetro/discussions)
+| Function | GPIO |
+|---|---|
+| Button / touch input (K1) | 16 |
+| RGB LED red / green / blue | 25 / 14 / 13 |
+| Port LEDs A–D | 15, 4, 2, 12 |
+| Port sense A–D | 36, 35, 32, 33 |
+| Console power sense | 39 |
+| Maple bus ports A–D | 21/22, 3/5, 18/23, 26/27 |
 
-## Makers sponsoring BlueRetro
-Buying BlueRetro adapters from these makers helps support the continued development of the BlueRetro firmware!\
-Thanks to all sponsors!
+The board has no console power or reset control: GPIO13 and GPIO14 drive the RGB LED, not the console. The controller-port shields are tied to ground, so BlueRetro's wired/wireless auto-switching isn't possible on this board.
 
-* [Laser Bear Industries](https://www.laserbear.net)
-* [Humble Bazooka](https://www.humblebazooka.com)
-* [RetroOnyx](https://www.retroonyx.com/)
-* [RetroTime](https://8bitmods.com/retrotime)
+## How this fork was made
 
-## Community Contribution
-* BlueRetro PS1/2 Receiver by [mi213](https://twitter.com/mi213ger): 3D printed case & PCB for building DIY PS1/2 dongle.\
-  https://github.com/Micha213/BlueRetro-PS1-2-Receiver
-* N64 BlueRetro Mount by [reventlow64](https://twitter.com/reventlow): 3d printed mount for ESP32-DevkitC for N64.\
-  https://www.prusaprinters.org/prints/90275-nintendo-64-blueretro-bluetooth-receiver-mount
-* BlueRetro Adapter Case by [Sigismond0](https://twitter.com/Sigismond0): 3d printed case for ESP32-DevkitC.\
-  https://www.prusaprinters.org/prints/116729-blueretro-bluetooth-controller-adapter-case
-* BlueRetro AIO by [pmgducati](https://github.com/pmgducati): BlueRetro Through-hole base and cable PCBs.\
-  https://github.com/pmgducati/Blue-Retro-AIO-Units
-* BlueRetro HW2 internal guides by [Nostalgic Indulgences](https://twitter.com/nosIndulgences): Internal install guides\
-  https://github.com/nostalgic-indulgences/BlueRetro_Internal_Installation
-* BlueRetro latency test by [GamingNJncos](https://twitter.com/GamingNJncos): Documentation on how to run BlueRetro latency test\
-  https://github.com/GamingNJncos/BLE-3D-Saturn-Public/tree/main/BlueRetro_Latency_Testing
-* BR4N64 by [TharathielCB](https://github.com/TharathielCB): Internal BlueRetro Flex-PCB for Nintendo 64\
-  https://github.com/TharathielCB/BR4N64
-* BlueMemCard by [ChrispyNugget](https://github.com/ChrispyNugget): Replacement PCB for PSX memory card that incorporates PicoMemcard and BlueRetro support\
-  https://github.com/ChrispyNugget/BlueMemCard
-* BlueRetro HW2 QSB for GameCube by [Arthrimus](https://github.com/Arthrimus): Internal Blueretro PCB with CurrentTrigger for GameCube\
-  https://github.com/Arthrimus/BlueRetro-HW2-GameCube
+The vendor firmware (`SEGA_DC_24V01_iBlueControlMod.bin`, SHA-256 `7d95dd7d…bf87fa`) was disassembled and compared function by function against a rebuild of BlueRetro v1.9. 2,229 of 2,554 functions are byte-identical. The rest are the pin changes, which were then ported to the latest BlueRetro.
 
-<br><p align="center"><img src="https://cdn.hackaday.io/images/4560691598833898038.png" height="200"/></p>
+The full write-up, with every difference, the community findings and recovery options, is in **[docs/README_iBlueControlMod.md](docs/README_iBlueControlMod.md)**.
+
+## Credits and license
+
+- **BlueRetro** © Jacques Gagnon ([darthcloud/BlueRetro](https://github.com/darthcloud/BlueRetro)), Apache-2.0. Upstream is now archived; its original README is kept in [docs/README_BlueRetro_upstream.md](docs/README_BlueRetro_upstream.md), and the [BlueRetro wiki](https://github.com/darthcloud/BlueRetro/wiki) still documents the general features.
+- The pin mapping was cross-checked against [BlueRetro discussion #1183](https://github.com/darthcloud/BlueRetro/discussions/1183) (darthcloud, zeus86 and others).
+- This fork is released under the same Apache-2.0 license (see [LICENSE](LICENSE)).
+
+This project is not affiliated with the iBlueControlMod vendor or with SEGA. Flash at your own risk, and keep a backup.

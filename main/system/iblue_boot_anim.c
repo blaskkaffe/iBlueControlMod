@@ -17,18 +17,6 @@
 #define ANIM_MIN_LEFT_MS 400 /* not worth starting for less */
 #define ANIM_FADE_IN_MS 150  /* when starting in the middle of it, do not pop on */
 
-#if defined(CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_COMET)
-#define ANIM_STYLE IBLUE_ANIM_COMET
-#elif defined(CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_FILL)
-#define ANIM_STYLE IBLUE_ANIM_FILL
-#elif defined(CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_WAVE)
-#define ANIM_STYLE IBLUE_ANIM_WAVE
-#elif defined(CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_CENTER)
-#define ANIM_STYLE IBLUE_ANIM_CENTER
-#else
-#define ANIM_STYLE IBLUE_ANIM_SCAN
-#endif
-
 static volatile bool active;
 static uint8_t led_pin[IBLUE_ANIM_LEDS];
 static uint32_t start_ms;
@@ -47,7 +35,7 @@ static void anim_task(void *arg) {
             break;
         }
         for (int i = 0; i < IBLUE_ANIM_LEDS; i++) {
-            uint32_t duty = iblue_anim_duty(ANIM_STYLE, elapsed, total, i);
+            uint32_t duty = iblue_anim_duty(elapsed, total, i);
 
             if (run < ANIM_FADE_IN_MS) {
                 duty = duty * run / ANIM_FADE_IN_MS;

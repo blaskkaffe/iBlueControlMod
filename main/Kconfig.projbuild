@@ -70,9 +70,10 @@ menu "BlueRetro"
         depends on BLUERETRO_HW_IBLUECONTROLMOD
         default y
         help
-            When the console powers on, the four port LEDs run a smooth animation for the
-            length of the BIOS boot animation, then show the real state (a lit LED per connected
-            controller). Port LEDs never blink unless a Bluetooth controller is connected.
+            When the console powers on, the four port LEDs show drops falling on water for the
+            length of the BIOS boot animation (ripples run along the LEDs and bounce off the ends),
+            then show the real state (a lit LED per connected controller). Port LEDs never blink
+            unless a Bluetooth controller is connected.
 
     config BLUERETRO_IBLUE_BOOT_ANIM_MS
         int "iBlueControlMod: length of the Dreamcast BIOS boot animation (ms)"
@@ -92,23 +93,6 @@ menu "BlueRetro"
             The adapter boots while the console already starts: this much of the animation is
             counted as played when the firmware starts it (bootloader time; the rest is the
             time since the firmware started).
-
-    choice BLUERETRO_IBLUE_BOOT_ANIM_STYLE
-        prompt "iBlueControlMod: boot animation of the port LEDs"
-        depends on BLUERETRO_IBLUE_BOOT_ANIM
-        default BLUERETRO_IBLUE_BOOT_ANIM_SCAN
-
-        config BLUERETRO_IBLUE_BOOT_ANIM_SCAN
-            bool "Scan: a soft light runs A to D and back"
-        config BLUERETRO_IBLUE_BOOT_ANIM_COMET
-            bool "Comet: scan with a long tail"
-        config BLUERETRO_IBLUE_BOOT_ANIM_FILL
-            bool "Fill: A to D light up one by one, then go out from D to A"
-        config BLUERETRO_IBLUE_BOOT_ANIM_WAVE
-            bool "Wave: every LED breathes, offset from its neighbour"
-        config BLUERETRO_IBLUE_BOOT_ANIM_CENTER
-            bool "Centre: B and C, then A and D, then back in"
-    endchoice
 
     config BLUERETRO_IBLUE_DC_MENU_COLORS
         bool "iBlueControlMod: PS4/PS5 light bar colours A orange, B green, C blue, D magenta"

@@ -1,69 +1,87 @@
-/* iBlueControlMod: boot animation maths. See iblue_anim_curve.h. */
+/* iBlueControlMod: boot animation maths (water ripples). See iblue_anim_curve.h. */
 
 #include <math.h>
 #include "system/iblue_anim_curve.h"
 
-#define SWEEP_MS 1500.0f /* wanted time of one A to D to A sweep */
-#define GAMMA 2.2f       /* LED brightness is not linear in duty */
+#define GAMMA 2.2f          /* LED brightness is not linear in duty */
+#define WIDTH 4.0f          /* the tank: LED i sits at i + 0.5, the walls at 0 and 4 */
+#define SPEED 1.6f          /* ripple speed, LED spacings per second */
+#define WAVELENGTH 2.4f     /* crest to crest */
+#define FRONT 0.45f         /* how sharp the leading edge is */
+#define TRAIL 1.7f         /* how long the trailing ripples last behind the front */
+#define NEAR 3.0f          /* distance from which the amplitude falls with the square root of it */
+#define DAMPING_S 4.5f      /* the ripples die out with this time constant */
+#define REST 0.20f          /* brightness of calm water (the LEDs glow a little, a trough is dark) */
+#define GAIN 1.7f          /* the ripples are drawn a bit larger than life */
+#define SPLASH_S 0.18f      /* time for the splash to build up */
+#define TWO_PI 6.2831853f
+#define IMAGES 2            /* mirror images of a drop on each side: the walls */
+
+struct drop {
+    float at;   /* time of the impact, fraction of the animation */
+    float x;    /* where, 0..WIDTH */
+    float amp;
+};
+
+/* The first one lands in the middle and is the big one; two smaller ones follow */
+static const struct drop drops[] = {
+    {0.02f, 2.00f, 1.00f},
+    {0.33f, 0.85f, 0.90f},
+    {0.62f, 3.20f, 0.95f},
+};
 
 static float clamp01(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x); }
 static float smooth(float x) { x = clamp01(x); return x * x * (3.0f - 2.0f * x); }
 
-/* 0 -> 1 -> 0 over x in [0, 1] */
-static float tri(float x) {
-    x -= floorf(x);
-    return x < 0.5f ? 2.0f * x : 2.0f - 2.0f * x;
+/* Distance to the impact, rounded off so the water has no sharp point right where the drop hits */
+static float dist(float d) { return sqrtf(d * d + 0.04f); }
+
+/* Height of one ring ripple at distance r, `age` seconds after the impact. s is how far the point
+ * is behind the front (negative: the front has not arrived yet). */
+static float ripple(float r, float age) {
+    float s = r - SPEED * age;
+    float env = s > 0.0f ? expf(-(s / FRONT) * (s / FRONT)) : expf(-(s / TRAIL) * (s / TRAIL));
+    float spread = 1.0f / sqrtf(1.0f + r / NEAR);
+    /* the splash builds up over a moment, so the water does not jump at the impact */
+    return cosf(TWO_PI * s / WAVELENGTH) * env * spread * expf(-age / DAMPING_S) * smooth(age / SPLASH_S);
 }
 
-int iblue_anim_cycles(uint32_t total_ms) {
-    int n = (int)((float)total_ms / SWEEP_MS + 0.5f);
-    return n < 1 ? 1 : n;
-}
+/* Height of the water at x, t seconds into the animation */
+static float height(float x, float t, float total_s) {
+    float h = 0.0f;
 
-/* brightness 0..1 of an LED, before gamma and the fade at the ends */
-static float level(int style, float t, int cycles, int led) {
-    float c = (float)cycles * t; /* sweeps done so far */
-    float x = tri(c);            /* 0 at A, 1 at D */
-    float rising = (c - floorf(c)) < 0.5f;
+    for (unsigned i = 0; i < sizeof(drops) / sizeof(drops[0]); i++) {
+        float age = t - drops[i].at * total_s;
 
-    switch (style) {
-        case IBLUE_ANIM_COMET: {
-            /* head position 0..3; the tail trails behind it, nothing is lit ahead */
-            float p = 3.0f * x;
-            float behind = rising ? (p - (float)led) : ((float)led - p);
-            if (behind < -0.35f) return 0.0f;
-            if (behind < 0.0f) return smooth(1.0f + behind / 0.35f);
-            return expf(-behind / 0.9f);
+        if (age < 0.0f) {
+            continue;
         }
-        case IBLUE_ANIM_FILL:
-            /* each LED goes on while the front passes it and off again on the way back */
-            return smooth(3.0f * 1.35f * x - (float)led * 1.0f + 0.15f);
-        case IBLUE_ANIM_WAVE:
-            return 0.5f - 0.5f * cosf(6.2831853f * (c * 2.0f - (float)led * 0.25f));
-        case IBLUE_ANIM_CENTER: {
-            float r = fabsf((float)led - 1.5f);       /* 0.5 for B and C, 1.5 for A and D */
-            float ring = 2.0f * x;                    /* the ring grows out, then comes back */
-            return smooth(1.0f - fabsf(ring - r) / 0.95f);
-        }
-        case IBLUE_ANIM_SCAN:
-        default: {
-            float d = fabsf(3.0f * x - (float)led);
-            return smooth(1.0f - d / 1.2f);
+        /* the drop and its mirror images in the two walls */
+        for (int k = -IMAGES; k <= IMAGES; k++) {
+            float a = 2.0f * WIDTH * (float)k + drops[i].x;
+            float b = 2.0f * WIDTH * (float)k - drops[i].x;
+
+            h += drops[i].amp * ripple(dist(x - a), age);
+            h += drops[i].amp * ripple(dist(x - b), age);
         }
     }
+    return h;
 }
 
-uint32_t iblue_anim_duty(int style, uint32_t elapsed_ms, uint32_t total_ms, int led) {
-    float t, env, v;
-    int cycles;
+float iblue_anim_height(float x, uint32_t elapsed_ms, uint32_t total_ms) {
+    return height(x, (float)elapsed_ms / 1000.0f, (float)total_ms / 1000.0f);
+}
+
+uint32_t iblue_anim_duty(uint32_t elapsed_ms, uint32_t total_ms, int led) {
+    float t, v, env;
 
     if (total_ms == 0 || elapsed_ms >= total_ms || led < 0 || led >= IBLUE_ANIM_LEDS) {
         return 0;
     }
-    t = (float)elapsed_ms / (float)total_ms;
-    cycles = iblue_anim_cycles(total_ms);
-    /* fade in over the first 5 % and out over the last 8 % so it neither pops on nor off */
-    env = smooth(t / 0.05f) * smooth((1.0f - t) / 0.08f);
-    v = level(style, t, cycles, led) * env;
-    return (uint32_t)(powf(clamp01(v), GAMMA) * (float)IBLUE_ANIM_MAX + 0.5f);
+    t = (float)elapsed_ms / 1000.0f;
+    /* height of the water is the brightness: calm water glows a little, a crest is bright, a trough dark */
+    v = clamp01(REST + (1.0f - REST) * GAIN * height((float)led + 0.5f, t, (float)total_ms / 1000.0f));
+    /* the water settles in over the first 0.35 s and is eased out over the last 8 % */
+    env = smooth(t / 0.35f) * smooth(((float)total_ms - (float)elapsed_ms) / (0.08f * (float)total_ms));
+    return (uint32_t)(powf(v * env, GAMMA) * (float)IBLUE_ANIM_MAX + 0.5f);
 }

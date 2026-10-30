@@ -13,20 +13,19 @@
 #define IBLUE_ANIM_LEDS 4
 #define IBLUE_ANIM_MAX 1023 /* duty of a 10 bit PWM */
 
-enum {
-    IBLUE_ANIM_SCAN = 0, /* a soft light runs A to D and back (Knight Rider) */
-    IBLUE_ANIM_COMET,    /* the same, with a long tail behind a bright head */
-    IBLUE_ANIM_FILL,     /* A to D light up one after the other, then go out again from D to A */
-    IBLUE_ANIM_WAVE,     /* every LED breathes, a quarter of a breath later than its neighbour */
-    IBLUE_ANIM_CENTER,   /* B and C, then A and D, then back in */
-    IBLUE_ANIM_STYLES,
-};
-
-/* Number of A to D to A sweeps that fit the animation time (at least one). */
-int iblue_anim_cycles(uint32_t total_ms);
+/*
+ * Drops falling on water. Take a line through the water: the four LEDs sit on it, A to D. A drop
+ * lands at a point of the line and a ring ripple spreads from it (seen in the cut, a wave packet
+ * with a sharp leading crest and a few weaker ones behind, getting weaker with distance and time).
+ * The ends of the line are tank walls, so the ripples come back and cross each other. The height
+ * of the water at each LED is its brightness; the water below its resting level is dark.
+ */
 
 /* PWM duty 0..IBLUE_ANIM_MAX of one LED (0 = A .. 3 = D) `elapsed_ms` into an animation of
  * `total_ms`. It fades in and out at the ends and is dark from total_ms on. */
-uint32_t iblue_anim_duty(int style, uint32_t elapsed_ms, uint32_t total_ms, int led);
+uint32_t iblue_anim_duty(uint32_t elapsed_ms, uint32_t total_ms, int led);
+
+/* The water height itself at x (0 .. 4, LED i at i + 0.5), for the preview drawings and the tests. */
+float iblue_anim_height(float x, uint32_t elapsed_ms, uint32_t total_ms);
 
 #endif /* _IBLUE_ANIM_CURVE_H_ */

@@ -2,13 +2,13 @@
 
 Status: **written and tested on a PC only.** The firmware has not been built (no ESP-IDF here) and nothing has run on a board or a console. See "Not verified" at the end.
 
-openMenu's **Files** icon opens a Controllers screen: pick a port (A to D), change the type, remap every Dreamcast output with press-to-learn or from a list, then save or discard. It works with no Bluetooth controller connected (any wired Dreamcast pad navigates; the list picker replaces press-to-learn). The openMenu side is in the openMenu-Virtual-Folder-Bundle repo (`NEWMENU.md`, "Controllers screen").
+openMenu's **Files** icon opens a Controllers screen: pick a port (A to D), change the type, remap every Dreamcast output with press-to-learn or from a list, then save or discard. **It needs at least one Bluetooth controller connected**: with hotplug on (the iBlue default) `wired_port_hdl()` only enables the Maple pins of ports that have a Bluetooth controller ready, so with none connected no port answers at all, VMU or not. A port without a controller can still be edited, through another port that has one; the list picker replaces press-to-learn for it. The openMenu side is in the openMenu-Virtual-Folder-Bundle repo (`NEWMENU.md`, "Controllers screen").
 
 Left for later (they were in the first draft of this document): the power LED colours, a colour per network (DCNow! / DCNET) and the triple-tap network toggle on the button.
 
 ## How it works
 
-- The board answers on the Maple bus as a controller and a VMU on every port whether or not a Bluetooth pad is paired. The **settings channel is eight blocks (200 to 207) of that emulated VMU**. `maple.c` hands reads and writes of those blocks to `iblue_cfg.c` instead of the memory card buffer, so they are never saved as VMU data and no game sees them. openMenu uses KallistiOS' ordinary `vmu_block_read` / `vmu_block_write`; no new Maple function is needed.
+- The board answers on the Maple bus as a controller and a VMU on every port **that is enabled**; with hotplug on that means only ports with a Bluetooth controller (see above). The **settings channel is eight blocks (200 to 207) of that emulated VMU**. `maple.c` hands reads and writes of those blocks to `iblue_cfg.c` instead of the memory card buffer, so they are never saved as VMU data and no game sees them. openMenu uses KallistiOS' ordinary `vmu_block_read` / `vmu_block_write`; no new Maple function is needed.
 - The Maple interrupt only copies bytes. A task (`iblue_cfg_task`, polls every 20 ms) runs the command.
 - **Port A has to keep its VMU** (the channel lives in it): `SET_TYPE` refuses an accessory mode without the VMU bit on port A (`IBLUE_RES_LOCKOUT`). The VMU has to be on for port A in the first place (it is the existing "accessories" setting).
 - One mapping table per **output port** (A to D), exactly the table `struct in_cfg` already has and the blueretro.io web config edits. Not one per Bluetooth address: the profile follows the port the controller is assigned to.

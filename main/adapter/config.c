@@ -273,6 +273,10 @@ static void config_init_struct(struct config *data) {
             data->in_cfg[i].map_cfg[j].algo = 0;
         }
     }
+#ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
+    /* The game id arrives through the VMU of port A, so a new configuration has it on */
+    data->out_cfg[0].acc_mode = ACC_MEM;
+#endif
 }
 
 static void config_init_nvs_patch(struct config *data) {

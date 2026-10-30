@@ -65,6 +65,7 @@ set(srcs
     "system/led.c"
     "system/iblue_led.c"
     "system/brctl.c"
+    "system/vmu_lcd.c"
     "system/bare_metal_app_cpu.c"
     "system/core0_stall.c"
     "system/core0_stall_highint_hdl.S"

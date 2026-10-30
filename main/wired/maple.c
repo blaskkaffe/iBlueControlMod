@@ -19,6 +19,7 @@
 #include "system/intr.h"
 #include "maple.h"
 #include "system/brctl.h"
+#include "system/vmu_lcd.h"
 
 #define ID_CTRL    0x00000001
 #define ID_VMU_MEM 0x00000002
@@ -663,6 +664,9 @@ maple_end:
                                 //         ets_printf("CRC ERR: 0x%02X, 0x%02X\n", pkt.data[pkt.len * 4 + 4], crc);
                                 //     }
                                 // }
+                                if (func.val == ID_VMU_LCD && !bad_frame && pkt.len == 2 + VMU_LCD_SIZE / 4) {
+                                    vmu_lcd_push((void *)&pkt.data32[2]);
+                                }
                                 pkt.len = 0x00;
                                 pkt.cmd = CMD_ACK;
                                 if (func.val == ID_VMU_MEM) {

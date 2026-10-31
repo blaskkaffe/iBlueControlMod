@@ -4,23 +4,90 @@
 #include "system/iblue_anim_curve.h"
 
 #define GAMMA 2.2f          /* LED brightness is not linear in duty */
-#define WIDTH 4.0f          /* the tank: LED i sits at i + 0.5, the walls at 0 and 4 */
+#define WIDTH_DEFAULT 4.0f  /* the tank of the default settings: LED i sits at i + 0.5, the walls at 0 and 4 */
 #define SPEED 1.6f          /* ripple speed, LED spacings per second */
 #define WAVELENGTH 2.4f     /* crest to crest */
 #define FRONT 0.45f         /* how sharp the leading edge is */
 #define TRAIL 1.7f         /* how long the trailing ripples last behind the front */
 #define NEAR 3.0f          /* distance from which the amplitude falls with the square root of it */
 #define DAMPING_S 4.5f      /* the ripples die out with this time constant */
-#define REST_LOW 0.20f      /* brightness of calm water at the start (a trough is dark) */
-#define REST_HIGH 0.42f     /* ... after the water has risen */
-#define RISE_AT 0.30f       /* the water starts to rise here, fraction of the animation ... */
-#define RISE_LEN 0.20f      /* ... and is up this much later */
-#define FADE_AT 0.45f       /* from here the water goes down and the light with it, to nothing at the end */
+/* the water level curve (REST_LOW, REST_HIGH, RISE_AT, RISE_LEN, FADE_AT) and more are in the settings */
 #define SETTLE 0.16f        /* the light comes in over this part of the animation */
 #define GAIN 1.7f           /* the ripples are drawn a bit larger than life */
 #define SPLASH_S 0.25f      /* time for the splash to build up */
 #define TWO_PI 6.2831853f
 #define IMAGES 2            /* mirror images of a drop on each side: the walls */
+
+/* total_s ctrl led_dist tank_len group_pos density depth low high rise_at rise_len fade_at */
+const struct iblue_anim_cfg iblue_anim_cfg_default = {15, 20, 100, 400, 0, 100, 100, 20, 42, 30, 20, 45};
+const struct iblue_anim_cfg iblue_anim_cfg_min     = { 5,  0,  30, 100, -500, 30,  20,  0,  0,  0,  1, 10};
+const struct iblue_anim_cfg iblue_anim_cfg_max     = {60, 100, 300, 1500, 500, 300, 200, 100, 100, 90, 60, 95};
+
+static struct iblue_anim_cfg cfg_store[2] = {
+    {15, 20, 100, 400, 0, 100, 100, 20, 42, 30, 20, 45},
+    {15, 20, 100, 400, 0, 100, 100, 20, 42, 30, 20, 45},
+};
+static volatile int cfg_cur;
+
+int iblue_anim_cfg_clamp(struct iblue_anim_cfg *c) {
+    int16_t *v = (int16_t *)c;
+    const int16_t *lo = (const int16_t *)&iblue_anim_cfg_min;
+    const int16_t *hi = (const int16_t *)&iblue_anim_cfg_max;
+    int changed = 0;
+
+    for (int i = 0; i < IBLUE_ANIM_CFG_FIELDS; i++) {
+        if (v[i] < lo[i]) { v[i] = lo[i]; changed = 1; }
+        if (v[i] > hi[i]) { v[i] = hi[i]; changed = 1; }
+    }
+    return changed;
+}
+
+void iblue_anim_set_cfg(const struct iblue_anim_cfg *c) {
+    int next = cfg_cur ^ 1;
+
+    cfg_store[next] = *c;
+    iblue_anim_cfg_clamp(&cfg_store[next]);
+    cfg_cur = next; /* the frame in progress finishes with the old one */
+}
+
+const struct iblue_anim_cfg *iblue_anim_get_cfg(void) {
+    return &cfg_store[cfg_cur];
+}
+
+/* the settings as the numbers the maths use */
+struct params {
+    float width;     /* tank length, LED spacings */
+    float dist;      /* LED spacing */
+    float x0;        /* where LED A sits */
+    float speed;     /* ripple speed, LED spacings per second */
+    float damping_s; /* the ripples die out with this time constant */
+    float depth;     /* brightness of the water */
+    float low, high, rise_at, rise_len, fade_at;
+};
+
+static void get_params(struct params *p) {
+    const struct iblue_anim_cfg *c = iblue_anim_get_cfg();
+    float rho = (float)c->density / 100.0f;
+
+    p->width = (float)c->tank_len / 100.0f;
+    p->dist = (float)c->led_dist / 100.0f;
+    p->x0 = (p->width - 3.0f * p->dist) / 2.0f + (float)c->group_pos / 100.0f;
+    p->speed = SPEED / rho;
+    p->damping_s = DAMPING_S / rho;
+    p->depth = (float)c->depth / 100.0f;
+    p->low = (float)c->level_low / 100.0f;
+    p->high = (float)c->level_high / 100.0f;
+    p->rise_at = (float)c->rise_at / 100.0f;
+    p->rise_len = (float)c->rise_len / 100.0f;
+    p->fade_at = (float)c->fade_at / 100.0f;
+}
+
+/* where LED i is in the tank (never outside the walls) */
+static float led_x(const struct params *p, int i) {
+    float x = p->x0 + (float)i * p->dist;
+
+    return x < 0.02f ? 0.02f : (x > p->width - 0.02f ? p->width - 0.02f : x);
+}
 
 struct drop {
     float at;   /* time of the impact, seconds */
@@ -58,18 +125,18 @@ static float dist(float d) { return sqrtf(d * d + 0.04f); }
 
 /* Height of one ring ripple at distance r, `age` seconds after the impact. s is how far the point
  * is behind the front (negative: the front has not arrived yet). */
-static float ripple(float r, float age, float soft) {
-    float s = r - SPEED * age;
+static float ripple(const struct params *p, float r, float age, float soft) {
+    float s = r - p->speed * age;
     float front = FRONT * soft;
     float trail = TRAIL * soft;
     float env = s > 0.0f ? expf(-(s / front) * (s / front)) : expf(-(s / trail) * (s / trail));
     float spread = 1.0f / sqrtf(1.0f + r / NEAR);
     /* the splash builds up over a moment, so the water does not jump at the impact */
-    return cosf(TWO_PI * s / (WAVELENGTH * soft)) * env * spread * expf(-age / DAMPING_S) * smooth(age / (SPLASH_S * soft));
+    return cosf(TWO_PI * s / (WAVELENGTH * soft)) * env * spread * expf(-age / p->damping_s) * smooth(age / (SPLASH_S * soft));
 }
 
 /* Height of the water at x, t seconds into the animation */
-static float height(float x, float t, float total_s) {
+static float height(const struct params *p, float x, float t, float total_s) {
     float h = 0.0f;
     struct drop dr;
 
@@ -81,54 +148,64 @@ static float height(float x, float t, float total_s) {
         }
         /* the drop and its mirror images in the two walls */
         for (int k = -IMAGES; k <= IMAGES; k++) {
-            float a = 2.0f * WIDTH * (float)k + dr.x;
-            float b = 2.0f * WIDTH * (float)k - dr.x;
+            float dx = dr.x * p->width / WIDTH_DEFAULT; /* the drops fall at the same places of a longer or shorter tank */
+            float a = 2.0f * p->width * (float)k + dx;
+            float b = 2.0f * p->width * (float)k - dx;
 
-            h += dr.amp * ripple(dist(x - a), age, dr.soft);
-            h += dr.amp * ripple(dist(x - b), age, dr.soft);
+            h += dr.amp * ripple(p, dist(x - a), age, dr.soft);
+            h += dr.amp * ripple(p, dist(x - b), age, dr.soft);
         }
     }
     return h;
 }
 
 float iblue_anim_height(float x, uint32_t elapsed_ms, uint32_t total_ms) {
-    return height(x, (float)elapsed_ms / 1000.0f, (float)total_ms / 1000.0f);
+    struct params p;
+
+    get_params(&p);
+    return height(&p, x, (float)elapsed_ms / 1000.0f, (float)total_ms / 1000.0f);
 }
 
-/* Level of the calm water: REST_LOW at the start, up to REST_HIGH around a third of the way */
-static float rest_level(float u) {
-    return REST_LOW + (REST_HIGH - REST_LOW) * smoother((u - RISE_AT) / RISE_LEN);
+/* Level of the calm water: the start level, up to the raised level where the curve of the settings says */
+static float rest_level(const struct params *p, float u) {
+    return p->low + (p->high - p->low) * smoother((u - p->rise_at) / p->rise_len);
 }
 
 /* ... and the whole thing eased in at the start and out at the end */
-static float master(float u) {
-    return smoother(u / SETTLE) * (1.0f - smoother((u - FADE_AT) / (1.0f - FADE_AT)));
+static float master(const struct params *p, float u) {
+    return clamp01(smoother(u / SETTLE) * (1.0f - smoother((u - p->fade_at) / (1.0f - p->fade_at))));
 }
 
 float iblue_anim_calm(float u) {
-    return rest_level(u) * master(u);
+    struct params p;
+
+    get_params(&p);
+    return rest_level(&p, u) * master(&p, u);
 }
 
 uint32_t iblue_anim_duty(uint32_t elapsed_ms, uint32_t total_ms, int led) {
+    struct params p;
     float u, t, rest, v;
 
     if (total_ms == 0 || elapsed_ms >= total_ms || led < 0 || led >= IBLUE_ANIM_LEDS) {
         return 0;
     }
+    get_params(&p);
     u = (float)elapsed_ms / (float)total_ms; /* 0..1 over the animation */
     t = (float)elapsed_ms / 1000.0f;
-    rest = rest_level(u);
-    /* height of the water is the brightness: calm water glows, a crest is bright, a trough dark */
-    v = clamp01(rest + (1.0f - rest) * GAIN * height((float)led + 0.5f, t, (float)total_ms / 1000.0f));
-    v *= master(u);
+    rest = rest_level(&p, u);
+    /* height of the water is the brightness: calm water glows, a crest is bright, a trough dark; the depth
+     * of the water scales all of it */
+    v = clamp01(p.depth * (rest + (1.0f - rest) * GAIN * height(&p, led_x(&p, led), t, (float)total_ms / 1000.0f)));
+    v *= master(&p, u);
     return (uint32_t)(powf(v, GAMMA) * (float)IBLUE_ANIM_MAX + 0.5f);
 }
 
-/* The gaps start at 350 ms and shrink by a fifth each time: 0, 350, 630, 854, 1033, 1177, 1291, 1383, 1456,
- * 1515, then the boom at 1562 */
-static const uint16_t blink_at[IBLUE_ANIM_INTRO_BLINKS] = {0, 350, 630, 854, 1033, 1177, 1291, 1383, 1456, 1515};
+/* The gaps start at 350 ms and each is 0.8775 of the one before (the last is 49 ms): sixteen blinks, then the
+ * boom at 2504 */
+static const uint16_t blink_at[IBLUE_ANIM_INTRO_BLINKS] = {0, 350, 657, 927, 1163, 1371, 1553, 1713, 1853, 1976, 2084, 2178, 2262, 2335, 2399, 2455};
 /* A first (it is lit already), then sparks all over, never the same LED twice in a row */
-static const uint8_t blink_led[IBLUE_ANIM_INTRO_BLINKS] = {0, 2, 1, 3, 1, 0, 3, 2, 0, 1};
+static const uint8_t blink_led[IBLUE_ANIM_INTRO_BLINKS] = {0, 2, 1, 3, 1, 0, 3, 2, 0, 1, 3, 0, 2, 3, 1, 0};
 
 uint32_t iblue_anim_intro_blink_at(int k) {
     return (k >= 0 && k < IBLUE_ANIM_INTRO_BLINKS) ? blink_at[k] : 0;

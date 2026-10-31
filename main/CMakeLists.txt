@@ -66,6 +66,7 @@ set(srcs
     "system/iblue_led.c"
     "system/iblue_port_led.c"
     "system/iblue_anim_curve.c"
+    "system/iblue_anim_cfg.c"
     "system/iblue_gameid.c"
     "system/iblue_gameid_ctl.c"
     "system/iblue_gesture.c"

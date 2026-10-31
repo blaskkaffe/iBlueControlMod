@@ -92,15 +92,6 @@ menu "BlueRetro"
             0.3 s and fades out quickly; B lights up when A's 0.3 s are over, is lit for 0.3 s and fades, then C,
             then D. About 1.4 s, taken from the animation's time.
 
-    config BLUERETRO_IBLUE_BOOT_ANIM_MS
-        int "iBlueControlMod: length of the Dreamcast BIOS boot animation (ms)"
-        depends on BLUERETRO_IBLUE_BOOT_ANIM
-        range 1000 20000
-        default 9000
-        help
-            Time from the console power-on until the boot animation ends. Measure it with a
-            stopwatch on your console and set it here.
-
     config BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS
         int "iBlueControlMod: time from console power-on until this firmware runs (ms)"
         depends on BLUERETRO_IBLUE_BOOT_ANIM

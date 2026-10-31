@@ -32,6 +32,7 @@
 #include <nvs_flash.h>
 #include <esp_timer.h>
 #include "system/iblue_led.h"
+#include "system/iblue_anim_cfg.h"
 #include "system/iblue_port_led.h"
 #include "system/iblue_gesture.h"
 #include "system/iblue_gameid_ctl.h"
@@ -825,17 +826,18 @@ void sys_mgr_cmd(uint8_t cmd) {
 void sys_mgr_iblue_early(void) {
     int32_t ret;
 
-    /* The port LEDs first (they need nothing else): B, C and D go off, A stays lit, the intro starts. */
+    /* The port LEDs first (they need nothing else): B, C and D go off, A stays lit until the animation starts. */
     iblue_port_led_init(led_list, sizeof(led_list));
-#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_ANIM
-    iblue_port_led_boot_anim((uint32_t)(esp_timer_get_time() / 1000) + CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS);
-#endif
-    /* The power LED needs its saved colour from NVS */
+    /* The settings of the animation and the saved colour of the power LED are in NVS */
     ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
         nvs_flash_init();
     }
+    iblue_anim_cfg_init();
+#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_ANIM
+    iblue_port_led_boot_anim((uint32_t)(esp_timer_get_time() / 1000) + CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS);
+#endif
     iblue_led_init();
 }
 #endif

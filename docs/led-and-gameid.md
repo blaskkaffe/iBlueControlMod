@@ -27,7 +27,7 @@ Three colours: **orange** (default), **blue** and **custom**.
 
 ## Boot animation: drops falling on water
 
-The LEDs are taken over first thing at start-up (`sys_mgr_iblue_early()`, before the file system and Bluetooth start, which used to take seconds with the pins in their power-up state). When the console powers on the four port LEDs run the animation for the length of the BIOS boot animation, then show the real state. Details of the shape (ripples, the rising and falling water level, drop schedule) are in [led-behaviour.md](led-behaviour.md). Settings: `BLUERETRO_IBLUE_BOOT_ANIM` (on), `BLUERETRO_IBLUE_BOOT_ANIM_MS` (**9000, a guess: time your console and set it**), `BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS` (700, the adapter's own start-up, also a guess).
+The LEDs are taken over first thing at start-up (`sys_mgr_iblue_early()`, before the file system and Bluetooth start, which used to take seconds with the pins in their power-up state). When the console powers on the four port LEDs run the animation for the length of the BIOS boot animation, then show the real state. Details of the shape (ripples, the rising and falling water level, drop schedule) are in [led-behaviour.md](led-behaviour.md). Settings: `BLUERETRO_IBLUE_BOOT_ANIM` (on), `BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS` (700, the adapter's own start-up, a guess); the length of the whole animation (15 s from the console's power-on, **a guess: time your console**) and the look of the water are settings on the hosted web config, see "LED settings" below.
 
 ## Dreamcast game id
 
@@ -50,7 +50,23 @@ Nothing has run on a board: the build compiles in CI. Whether blocks 200 and up 
 - **Per game**: the configuration BlueRetro saves for a game includes the output mode, so a game can run GamePadAlt (C, Z, D, second d-pad and stick) or Racing while others use the plain GamePad. Some games read the controller's capability mask and misbehave with `0x003FFFFF` (reported for Dolphin Blue), so GamePad stays the default. The hosted web config's Dreamcast presets page writes the type and the default mapping (L1 = Z, R1 = C, L2 / R2 = triggers, sticks as sticks, L3 / R3 unmapped) and can save them for the running game.
 
 ## Boot intro: fireworks
-Before the drops: **ten extremely short blinks (30 ms) of single LEDs, slow at first and faster and faster (350 ms apart, each gap 0.8 of the last), then the boom: all four LEDs at full brightness for 0.15 s, fading out together over 0.35 s**, then the drops. The first blink is A: the chip lights A while it starts and the script takes over from a lit A. The order of the sparks is A C B D B A D C A B (never the same LED twice in a row). It takes 2.06 s of the animation's time (the drops come in at the place they would have been anyway) and is skipped when less than 2 s of drops would be left (`BLUERETRO_IBLUE_BOOT_INTRO`). Spec in `iblue_anim_curve.h`, checked in `tests/host/test_anim.c`. Preview: `tests/host/anim_intro_frames.c` prints what the LEDs do (in the 20 ms frames of the LED task), `tests/host/render_intro.py` makes a video of it.
+Before the drops: **sixteen extremely short blinks (24 ms) of single LEDs, slow at first and faster and faster (350 ms apart, each gap 0.8775 of the last, down to 49 ms), 2.5 s in all, then the boom: all four LEDs at full brightness for 0.15 s, fading out together over 0.35 s**, then the drops. The first blink is A: the chip lights A while it starts and the script takes over from a lit A (A is held lit from the moment the LED code starts until the animation does, 0.5 s at most). The order of the sparks is A C B D B A D C A B D A C D B A (never the same LED twice in a row). The intro is 3.0 s of the animation; the drops are an animation of their own that starts when it is over and ends with the whole animation (15 s after the console's power-on). The intro is skipped when less than 2 s of drops would be left (`BLUERETRO_IBLUE_BOOT_INTRO`). Spec in `iblue_anim_curve.h`, checked in `tests/host/test_anim.c`. Preview: `tests/host/anim_intro_frames.c` prints what the LEDs do (in the 20 ms frames of the LED task), `tests/host/render_intro.py` makes a video of it.
+
+## LED settings (hosted web config, iblue.html)
+Saved in NVS (`iblue/anim`) and read at start-up; changed over BLE (commands 0x47 get, 0x48 set, 0x49 play now, 0x4A defaults; the info command's feature bit 3 says the firmware has them). Fields, defaults and ranges: `struct iblue_anim_cfg` in `iblue_anim_curve.h` (the web page has the same table, a test compares them).
+
+| Setting | Default | What it does |
+|---|---|---|
+| Length of the boot animation | 15 s | from the console's power-on, intro and drops |
+| Brightness of a connected controller | 20 % | the port LED of a connected controller: a quarter of the 80 % it was |
+| LED distance | 100 % | how far apart the LEDs sit in the water (100 % = one LED spacing) |
+| Water density | 100 % | heavier water: ripples travel slower and die out sooner |
+| Length between the outer walls | 400 % | the tank, in LED spacings (4.00): the ripples bounce back from the walls |
+| Group position | 0 | the four LEDs shifted left (-) or right (+) in the tank |
+| Water depth | 100 % | brightness of the water and its ripples (capped at the 80 % LED maximum) |
+| Water level curve | 20 % to 42 %, rise at 30 % for 20 %, fade from 45 % | the general brightness over the drops: start level, raised level, where and how long it rises, where it starts to go down to nothing |
+
+The animation brightness stays capped at `BLUERETRO_IBLUE_LED_MAX_PCT` (80 %); the controller LED brightness is its own setting. "Play now" runs the whole animation from its start so a setting can be seen at once.
 
 ## Start-up order of the LEDs
 The chip lights the power LED and port A while it starts (hardware, before any firmware runs). The firmware never turns them off to turn them on again: **hardware on, kept on, the script takes over**. When the LED code starts (`sys_mgr_iblue_early()`, in `wl_init_task`): the port LEDs are set up first, A is created already lit (the intro begins with A), B, C and D go off, the boot animation starts; then NVS is opened for the saved colour and the power LED channels are created already at their final level (full, in the saved colour). `err_led_init` no longer claims GPIO14, the green pin of the RGB LED (it ran before the LED code and switched the green off). An OTA update cannot change the bootloader, so the first third of a second stays the chip's and the board's.

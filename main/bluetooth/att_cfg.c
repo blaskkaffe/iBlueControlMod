@@ -21,6 +21,8 @@
 #include "system/fs.h"
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 #include "system/iblue_gesture.h"
+#include "system/iblue_anim_cfg.h"
+#include "system/iblue_port_led.h"
 #include "system/iblue_profile.h"
 #endif
 
@@ -43,6 +45,11 @@
 #define CFG_CMD_PROFILE_SAVE 0x44     /* write: slot, name; then read: result */
 #define CFG_CMD_PROFILE_LOAD 0x45     /* write: slot; then read: result */
 #define CFG_CMD_PROFILE_DELETE 0x46   /* write: slot; then read: result */
+#define CFG_CMD_GET_ANIM_CFG 0x47     /* write: part (0: fields 0-7, 1: fields 8-11); then read: version, part, 16 bit LE fields */
+#define CFG_CMD_SET_ANIM_CFG 0x48     /* write: version, 12 16 bit LE fields (see iblue_anim_curve.h); then read: result */
+#define CFG_CMD_PLAY_ANIM 0x49        /* write: play the whole boot animation now */
+#define CFG_CMD_RESET_ANIM_CFG 0x4A   /* write: the defaults; then read: result */
+#define IBLUE_ANIM_PART_FIELDS 8      /* a read answer is kept to 20 bytes: it fits the shortest ATT payload */
 #define IBLUE_CFG_VERSION 1
 #endif
 #define CFG_CMD_SET_DEFAULT_CFG 0x10
@@ -434,9 +441,10 @@ static void bt_att_cmd_read_group_rsp(uint16_t handle, uint16_t start, uint16_t 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 static uint8_t iblue_result;
 static uint8_t iblue_slot;
+static uint8_t iblue_anim_part;
 
 static void bt_att_cfg_cmd_iblue_info_rsp(uint16_t handle) {
-    uint8_t features = 0x03; /* bit0 tap gestures, bit1 profiles */
+    uint8_t features = 0x03 | 0x08; /* bit0 tap gestures, bit1 profiles, bit3 LED / animation settings */
     uint8_t *d = bt_hci_pkt_tmp.att_data;
 
 #ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
@@ -467,6 +475,21 @@ static void bt_att_cfg_cmd_profile_rsp(uint16_t handle) {
     memset(&d[2], 0, IBLUE_PROFILE_NAME_MAX + 1);
     memcpy(&d[2], name, IBLUE_PROFILE_NAME_MAX);
     bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 2 + IBLUE_PROFILE_NAME_MAX + 1);
+}
+
+static void bt_att_cfg_cmd_anim_cfg_rsp(uint16_t handle) {
+    uint8_t *d = bt_hci_pkt_tmp.att_data;
+    const int16_t *v = (const int16_t *)iblue_anim_get_cfg();
+    uint32_t first = iblue_anim_part ? IBLUE_ANIM_PART_FIELDS : 0;
+    uint32_t n = iblue_anim_part ? IBLUE_ANIM_CFG_FIELDS - IBLUE_ANIM_PART_FIELDS : IBLUE_ANIM_PART_FIELDS;
+
+    d[0] = IBLUE_CFG_VERSION;
+    d[1] = iblue_anim_part;
+    for (uint32_t i = 0; i < n; i++) {
+        d[2 + 2 * i] = (uint8_t)((uint16_t)v[first + i] & 0xFF);
+        d[3 + 2 * i] = (uint8_t)((uint16_t)v[first + i] >> 8);
+    }
+    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 2 + 2 * n);
 }
 
 static void bt_att_cfg_cmd_iblue_result_rsp(uint16_t handle) {
@@ -508,6 +531,11 @@ static void bt_att_cfg_cmd_rd_hdlr(uint16_t handle) {
         case CFG_CMD_GET_PROFILE:
             bt_att_cfg_cmd_profile_rsp(handle);
             break;
+        case CFG_CMD_GET_ANIM_CFG:
+            bt_att_cfg_cmd_anim_cfg_rsp(handle);
+            break;
+        case CFG_CMD_SET_ANIM_CFG:
+        case CFG_CMD_RESET_ANIM_CFG:
         case CFG_CMD_SET_GESTURES:
         case CFG_CMD_PROFILE_SAVE:
         case CFG_CMD_PROFILE_LOAD:
@@ -543,6 +571,33 @@ static void bt_att_cfg_cmd_wr_hdlr(struct bt_dev *device, uint8_t *data, uint32_
             break;
         case CFG_CMD_GET_PROFILE:
             iblue_slot = len > 1 ? data[1] : 0xFF;
+            break;
+        case CFG_CMD_GET_ANIM_CFG:
+            iblue_anim_part = (len > 1 && data[1]) ? 1 : 0;
+            break;
+        case CFG_CMD_SET_ANIM_CFG:
+        {
+            struct iblue_anim_cfg c;
+            int16_t *v = (int16_t *)&c;
+
+            if (len >= 2 + 2 * IBLUE_ANIM_CFG_FIELDS && data[1] == IBLUE_CFG_VERSION) {
+                for (uint32_t i = 0; i < IBLUE_ANIM_CFG_FIELDS; i++) {
+                    v[i] = (int16_t)((uint16_t)data[2 + 2 * i] | ((uint16_t)data[3 + 2 * i] << 8));
+                }
+                iblue_anim_cfg_save(&c); /* clamped to the ranges */
+                iblue_result = 0;
+            }
+            else {
+                iblue_result = IBLUE_PROF_BAD_ARG;
+            }
+            break;
+        }
+        case CFG_CMD_RESET_ANIM_CFG:
+            iblue_anim_cfg_reset();
+            iblue_result = 0;
+            break;
+        case CFG_CMD_PLAY_ANIM:
+            iblue_port_led_play();
             break;
         case CFG_CMD_PROFILE_SAVE:
         {

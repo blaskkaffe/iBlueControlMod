@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """Renders the boot intro and the first seconds of the drops (what anim_intro_frames.c prints) as a video of
 four blue port LEDs and the solid power LED, with a trace of the four duties under it.
-python3 render_intro.py <out.mp4> <slow_factor>   (1 = real time, 4 = four times slower)"""
+python3 render_intro.py <out.mp4> <slow_factor> [show_ms]   (1 = real time, 4 = four times slower)"""
 import subprocess, sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 out = sys.argv[1]
 slow = int(sys.argv[2]) if len(sys.argv) > 2 else 1
-SHOW = 5000
+SHOW = int(sys.argv[3]) if len(sys.argv) > 3 else 5000
 STEP = 1000 / (60 * slow) * slow  # sample every 1000/240 ms for slow, and 1000/60 for real time: see below
 RATE = 240                         # samples per second of the data
-data = subprocess.run(['/tmp/aif', '9000', '1000', str(SHOW), str(1000 / RATE)], capture_output=True, text=True)
 rows = []
-for line in subprocess.check_output(['/tmp/aif', '9000', '1000', str(SHOW), '4']).decode().split('\n'):
+for line in subprocess.check_output(['/tmp/aif', '15000', '1000', str(SHOW), '4']).decode().split('\n'):
     if line.strip():
         p = line.split()
         rows.append((int(p[0]), [int(x) for x in p[1:5]]))
@@ -63,7 +62,7 @@ for fi, (ms, duties) in enumerate(frames):
     arr += np.asarray(power).astype(np.int32) + (np.asarray(power_glow).astype(np.int32) * 0.5).astype(np.int32)
     img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
     dr = ImageDraw.Draw(img)
-    dr.text((90, 40), 'port LEDs: intro, then the drops' + ('' if slow == 1 else '   (%dx slower)' % slow), font=font, fill=(235, 235, 235))
+    dr.text((90, 40), 'port LEDs: fireworks, then the drops' + ('' if slow == 1 else '   (%dx slower)' % slow), font=font, fill=(235, 235, 235))
     dr.text((90, 85), '%.2f s' % (ms / 1000.0), font=small, fill=(180, 180, 180))
     # the traces of A..D, with a cursor
     dr.rectangle(chart, fill=(26, 24, 23))

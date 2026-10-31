@@ -58,6 +58,8 @@ async function setupGithub(page, opts) {
 
 async function open(browser, server, url, opts) {
     const consts = await import(path.join(site, 'utils/constants.js'));
+    const anim = await import(path.join(site, 'utils/ibluAnim.js'));
+    opts = Object.assign({ animDefaults: anim.ibluAnimDefaults(), animMin: anim.ibluAnimFields.map((f) => f.min), animMax: anim.ibluAnimFields.map((f) => f.max) }, opts);
     const context = await browser.newContext();
     const page = await context.newPage();
     const errors = [];
@@ -111,6 +113,61 @@ async function open(browser, server, url, opts) {
         check(await page.evaluate(() => window.__br.profiles[1]) === null, 'profile deleted');
         check(errors.length === 0, 'no script errors on the iBlue page: ' + errors.join('; '));
         await page.context().close();
+    }
+
+    // ---- port LEDs and the boot animation settings
+    {
+        const anim = await import(path.join(site, 'utils/ibluAnim.js'));
+        const fields = anim.ibluAnimFields;
+        const { page, errors } = await open(browser, server, 'iblue.html', iblue);
+        await page.click('#btConn');
+        await page.waitForSelector('#divLeds', { state: 'visible' });
+        check((await page.$$('#ledRows input[type=range]')).length === fields.length, 'a slider for each of the ' + fields.length + ' settings');
+        check(await page.inputValue('#led_ctrl_pct_n') === '20' && await page.inputValue('#led_total_s_n') === '15', 'the defaults of the adapter are shown: controller LED 20 %, 15 s');
+        const painted = await page.evaluate(() => {
+            const px = (id) => { const c = document.getElementById(id); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) { if (d[i] > 0) { n++; } } return n; };
+            return [px('ledTank'), px('ledCurve')];
+        });
+        check(painted[0] > 1000 && painted[1] > 500, 'the tank and the water level curve are drawn');
+        // a change on a slider redraws the preview
+        await page.fill('#led_tank_len_n', '800');
+        await page.dispatchEvent('#led_tank_len_n', 'input');
+        check(await page.inputValue('#led_tank_len') === '800', 'the number box moves the slider');
+        await page.fill('#led_ctrl_pct_n', '10');
+        await page.dispatchEvent('#led_ctrl_pct_n', 'input');
+        await page.fill('#led_group_pos_n', '-120');
+        await page.dispatchEvent('#led_group_pos_n', 'input');
+        await page.fill('#led_depth_n', '5000'); // out of range: the adapter clamps it
+        await page.dispatchEvent('#led_depth_n', 'input');
+        await page.click('#btnLedSave');
+        await page.waitForFunction(() => /Playing/.test(document.getElementById('ledStatus').textContent));
+        const sent = await page.evaluate(() => ({ anim: window.__br.anim, played: window.__br.played }));
+        const idx = (k) => fields.findIndex((f) => f.key === k);
+        check(sent.anim[idx('tank_len')] === 800 && sent.anim[idx('ctrl_pct')] === 10 && sent.anim[idx('group_pos')] === -120, 'the new numbers reached the adapter (negative number too)');
+        check(sent.anim[idx('depth')] === fields[idx('depth')].max, 'out of range is clamped');
+        check(sent.played === 1, 'save and play plays the animation');
+        check(await page.inputValue('#led_depth_n') === String(fields[idx('depth')].max), 'the page shows what the adapter kept');
+        await page.click('#btnLedDefaults');
+        await page.waitForFunction(() => /defaults/.test(document.getElementById('ledStatus').textContent));
+        check((await page.evaluate(() => window.__br.anim)).join() === anim.ibluAnimDefaults().join(), 'defaults restore every setting');
+        check(await page.inputValue('#led_tank_len_n') === '400', 'and the page shows them');
+        check(errors.length === 0, 'no script errors with the LED settings: ' + errors.join('; '));
+        await page.context().close();
+    }
+    {   // the table of the page is the table of the firmware, when its source is at hand
+        const anim = await import(path.join(site, 'utils/ibluAnim.js'));
+        const cands = [process.env.IBLUE_C_SRC, path.join(__dirname, '../../main/system/iblue_anim_curve.c'), '/home/user/iBlueControlMod/main/system/iblue_anim_curve.c'].filter(Boolean);
+        const src = cands.find((f) => fs.existsSync(f) && /iblue_anim_cfg_default/.test(fs.readFileSync(f, 'utf8')));
+        if (!src) {
+            console.log('(firmware source not found: table check skipped)');
+        }
+        else {
+            const text = fs.readFileSync(src, 'utf8');
+            const grab = (name) => text.match(new RegExp(name + '\\s*=\\s*\\{([^}]*)\\}'))[1].split(',').map((x) => parseInt(x.trim(), 10));
+            check(grab('iblue_anim_cfg_default').join() === anim.ibluAnimDefaults().join(), 'defaults of the page equal the firmware: ' + grab('iblue_anim_cfg_default'));
+            check(grab('iblue_anim_cfg_min').join() === anim.ibluAnimFields.map((f) => f.min).join(), 'minimums equal the firmware');
+            check(grab('iblue_anim_cfg_max').join() === anim.ibluAnimFields.map((f) => f.max).join(), 'maximums equal the firmware');
+        }
     }
 
     // ---- the same page with some other BlueRetro firmware

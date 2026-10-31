@@ -520,6 +520,10 @@ export const cfg_cmd_get_profile = 0x43;
 export const cfg_cmd_profile_save = 0x44;
 export const cfg_cmd_profile_load = 0x45;
 export const cfg_cmd_profile_delete = 0x46;
+export const cfg_cmd_get_anim_cfg = 0x47;
+export const cfg_cmd_set_anim_cfg = 0x48;
+export const cfg_cmd_play_anim = 0x49;
+export const cfg_cmd_reset_anim_cfg = 0x4A;
 
 /* What a tap gesture can do: the numbers are what the firmware knows (system/iblue_gesture.h). */
 export const ibluGestureNames = ['Single tap', 'Double tap', 'Triple tap'];

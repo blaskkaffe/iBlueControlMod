@@ -255,7 +255,9 @@ void iblue_led_init(void) {
             .speed_mode = IBLUE_LED_MODE,
             .channel = chans[i],
             .timer_sel = IBLUE_LED_TIMER,
-            .duty = 0,
+            /* the final level at once: the chip may have lit the LED while it starts, and it stays lit (the
+             * channel is not set up dark and then raised) */
+            .duty = (rgb[i] * (IBLUE_LED_MAX_DUTY * IBLUE_LED_CAP_PCT / 100)) / 255,
             .hpoint = 0,
             .flags.output_invert = 1, /* common anode: low = on */
         };

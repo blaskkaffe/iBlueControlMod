@@ -67,13 +67,15 @@ void err_led_init(uint32_t package) {
     ledc_channel_config_t ledc_channel = {
         .channel    = LEDC_CHANNEL_0,
         .duty       = hw_config.led_pulse_off_duty_cycle,
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+        /* GPIO14 is a colour of the RGB LED: this channel gets no pin, so the LED is left as the chip has it
+         * until iblue_led takes over (no change of colour in between) */
+        .gpio_num   = LEDC_PIN_NO_CHANGE,
+#else
         .gpio_num   = ERR_LED_PIN,
+#endif
         .speed_mode = LEDC_HIGH_SPEED_MODE,
         .hpoint     = 0,
-#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
-        /* GPIO14 is a common-anode LED colour: keep it off until iblue_led takes over */
-        .flags.output_invert = 1,
-#endif
         .timer_sel  = LEDC_TIMER_0,
     };
 

@@ -25,14 +25,20 @@
  * `total_ms`. It fades in and out at the ends and is dark from total_ms on. */
 uint32_t iblue_anim_duty(uint32_t elapsed_ms, uint32_t total_ms, int led);
 
-/* The intro that comes before the drops, a scanner: A is lit for 0.3 s and then fades out quickly; when
- * its 0.3 s are over B lights up, is lit for 0.3 s and fades, then C, then D. A carries on from the
- * blink of port A's pin (hardware, while the chip starts). Duty of one LED `ms` into the intro; 0 from
- * IBLUE_ANIM_INTRO_MS on. */
-#define IBLUE_ANIM_INTRO_HOLD_MS 300   /* one LED at full brightness; the next one lights when this is over */
-#define IBLUE_ANIM_INTRO_FADE_MS 200   /* then it fades out quickly (while the next one is lit) */
-#define IBLUE_ANIM_INTRO_MS (3 * IBLUE_ANIM_INTRO_HOLD_MS + IBLUE_ANIM_INTRO_HOLD_MS + IBLUE_ANIM_INTRO_FADE_MS)
+/* The intro that comes before the drops, fireworks: extremely short blinks of single LEDs, slow at first
+ * and faster and faster (a fuse), until the boom: all four LEDs lit at once, held, then faded out, and then
+ * the drops. The first blink is A, which the chip has lit already while it starts (hardware), so the intro
+ * takes over from a lit A. Duty of one LED `ms` into the intro; 0 from IBLUE_ANIM_INTRO_MS on. */
+#define IBLUE_ANIM_INTRO_BLINKS 10
+#define IBLUE_ANIM_INTRO_BLINK_MS 30u  /* one blink: more than one 20 ms frame of the LED task, so none is missed */
+#define IBLUE_ANIM_INTRO_BOOM_AT_MS 1562u /* the boom: the blinks are 350 ms apart at first, each gap 0.8 of the last */
+#define IBLUE_ANIM_INTRO_BOOM_HOLD_MS 150u /* all four at full brightness */
+#define IBLUE_ANIM_INTRO_BOOM_FADE_MS 350u /* then they fade out together */
+#define IBLUE_ANIM_INTRO_MS (IBLUE_ANIM_INTRO_BOOM_AT_MS + IBLUE_ANIM_INTRO_BOOM_HOLD_MS + IBLUE_ANIM_INTRO_BOOM_FADE_MS)
 uint32_t iblue_anim_intro_duty(uint32_t ms, int led);
+/* when blink k starts and which LED it is (for the tests and the preview) */
+uint32_t iblue_anim_intro_blink_at(int k);
+int iblue_anim_intro_blink_led(int k);
 
 /* How bright calm water is at u (0 .. 1 over the animation): it comes in, is raised after about a third and
  * is eased out to nothing at the end. For the preview drawings and the tests. */

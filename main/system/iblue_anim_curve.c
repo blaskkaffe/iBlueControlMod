@@ -124,24 +124,41 @@ uint32_t iblue_anim_duty(uint32_t elapsed_ms, uint32_t total_ms, int led) {
     return (uint32_t)(powf(v, GAMMA) * (float)IBLUE_ANIM_MAX + 0.5f);
 }
 
+/* The gaps start at 350 ms and shrink by a fifth each time: 0, 350, 630, 854, 1033, 1177, 1291, 1383, 1456,
+ * 1515, then the boom at 1562 */
+static const uint16_t blink_at[IBLUE_ANIM_INTRO_BLINKS] = {0, 350, 630, 854, 1033, 1177, 1291, 1383, 1456, 1515};
+/* A first (it is lit already), then sparks all over, never the same LED twice in a row */
+static const uint8_t blink_led[IBLUE_ANIM_INTRO_BLINKS] = {0, 2, 1, 3, 1, 0, 3, 2, 0, 1};
+
+uint32_t iblue_anim_intro_blink_at(int k) {
+    return (k >= 0 && k < IBLUE_ANIM_INTRO_BLINKS) ? blink_at[k] : 0;
+}
+
+int iblue_anim_intro_blink_led(int k) {
+    return (k >= 0 && k < IBLUE_ANIM_INTRO_BLINKS) ? blink_led[k] : 0;
+}
+
 uint32_t iblue_anim_intro_duty(uint32_t ms, int led) {
-    uint32_t start, fade_at;
+    uint32_t boom = IBLUE_ANIM_INTRO_BOOM_AT_MS;
     float level;
 
     if (led < 0 || led >= IBLUE_ANIM_LEDS) {
         return 0;
     }
-    start = (uint32_t)led * IBLUE_ANIM_INTRO_HOLD_MS;
-    fade_at = start + IBLUE_ANIM_INTRO_HOLD_MS;
-    if (ms < start) {
+    if (ms < boom) {
+        for (int k = 0; k < IBLUE_ANIM_INTRO_BLINKS; k++) {
+            if (blink_led[k] == led && ms >= (uint32_t)blink_at[k] && ms < (uint32_t)blink_at[k] + IBLUE_ANIM_INTRO_BLINK_MS) {
+                return IBLUE_ANIM_MAX;
+            }
+        }
         return 0;
     }
-    if (ms < fade_at) {
-        return IBLUE_ANIM_MAX;
+    if (ms < boom + IBLUE_ANIM_INTRO_BOOM_HOLD_MS) {
+        return IBLUE_ANIM_MAX; /* boom: all four */
     }
-    if (ms >= fade_at + IBLUE_ANIM_INTRO_FADE_MS) {
+    if (ms >= IBLUE_ANIM_INTRO_MS) {
         return 0;
     }
-    level = 1.0f - (float)(ms - fade_at) / (float)IBLUE_ANIM_INTRO_FADE_MS; /* what the eye sees: full, then down */
+    level = 1.0f - (float)(ms - boom - IBLUE_ANIM_INTRO_BOOM_HOLD_MS) / (float)IBLUE_ANIM_INTRO_BOOM_FADE_MS; /* what the eye sees */
     return (uint32_t)(powf(level, GAMMA) * (float)IBLUE_ANIM_MAX + 0.5f);
 }

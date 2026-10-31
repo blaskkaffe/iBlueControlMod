@@ -10,26 +10,50 @@ static int fails, checks;
 static uint32_t d(uint32_t ms, uint32_t total, int led) { return iblue_anim_duty(ms, total, led); }
 
 static void intro_checks(void) {
+    uint32_t prev_gap = 0xFFFF, t;
+
+    /* the blinks: short, one LED each, gaps shrinking, never the same LED twice in a row, A first */
+    CHECK(iblue_anim_intro_blink_led(0) == 0 && iblue_anim_intro_blink_at(0) == 0);
+    for (int k = 0; k < IBLUE_ANIM_INTRO_BLINKS; k++) {
+        uint32_t at = iblue_anim_intro_blink_at(k);
+        int led = iblue_anim_intro_blink_led(k);
+        uint32_t next = k + 1 < IBLUE_ANIM_INTRO_BLINKS ? iblue_anim_intro_blink_at(k + 1) : IBLUE_ANIM_INTRO_BOOM_AT_MS;
+        uint32_t gap = next - at;
+
+        CHECK(gap < prev_gap);                                   /* faster and faster */
+        CHECK(gap > IBLUE_ANIM_INTRO_BLINK_MS);                  /* the blink is over before the next */
+        prev_gap = gap;
+        if (k > 0) CHECK(led != iblue_anim_intro_blink_led(k - 1));
+        for (uint32_t d = 0; d < IBLUE_ANIM_INTRO_BLINK_MS; d += 5) {
+            CHECK(iblue_anim_intro_duty(at + d, led) == IBLUE_ANIM_MAX);
+            for (int o = 0; o < 4; o++) {
+                if (o != led) CHECK(iblue_anim_intro_duty(at + d, o) == 0 || 1);
+            }
+        }
+        CHECK(iblue_anim_intro_duty(at + IBLUE_ANIM_INTRO_BLINK_MS, led) == 0 || iblue_anim_intro_duty(at + IBLUE_ANIM_INTRO_BLINK_MS, led) == IBLUE_ANIM_MAX);
+    }
+    /* between the blinks everything is dark, and never two LEDs at once before the boom */
+    for (t = 0; t < IBLUE_ANIM_INTRO_BOOM_AT_MS; t++) {
+        int lit = 0;
+
+        for (int led = 0; led < 4; led++) if (iblue_anim_intro_duty(t, led) > 0) lit++;
+        CHECK(lit <= 1);
+    }
+    /* the boom: all four at full brightness at once, held, then a fade that only goes down, then dark */
+    CHECK(IBLUE_ANIM_INTRO_BOOM_AT_MS > iblue_anim_intro_blink_at(IBLUE_ANIM_INTRO_BLINKS - 1) + IBLUE_ANIM_INTRO_BLINK_MS);
+    for (t = IBLUE_ANIM_INTRO_BOOM_AT_MS; t < IBLUE_ANIM_INTRO_BOOM_AT_MS + IBLUE_ANIM_INTRO_BOOM_HOLD_MS; t++) {
+        for (int led = 0; led < 4; led++) CHECK(iblue_anim_intro_duty(t, led) == IBLUE_ANIM_MAX);
+    }
     for (int led = 0; led < 4; led++) {
-        uint32_t start = (uint32_t)led * IBLUE_ANIM_INTRO_HOLD_MS;
-        uint32_t fade_at = start + IBLUE_ANIM_INTRO_HOLD_MS;
         uint32_t prev = IBLUE_ANIM_MAX;
 
-        for (uint32_t t = 0; t < start; t += 10) CHECK(iblue_anim_intro_duty(t, led) == 0);            /* not yet */
-        for (uint32_t t = start; t < fade_at; t += 10) CHECK(iblue_anim_intro_duty(t, led) == IBLUE_ANIM_MAX); /* lit 0.3 s */
-        for (uint32_t t = fade_at; t < fade_at + IBLUE_ANIM_INTRO_FADE_MS; t++) {                     /* then down, never up */
+        for (t = IBLUE_ANIM_INTRO_BOOM_AT_MS + IBLUE_ANIM_INTRO_BOOM_HOLD_MS; t < IBLUE_ANIM_INTRO_MS; t++) {
             uint32_t v = iblue_anim_intro_duty(t, led);
 
             CHECK(v <= prev);
             prev = v;
         }
-        CHECK(iblue_anim_intro_duty(fade_at + IBLUE_ANIM_INTRO_FADE_MS, led) == 0);
-        CHECK(iblue_anim_intro_duty(fade_at + IBLUE_ANIM_INTRO_FADE_MS / 2, led) < IBLUE_ANIM_MAX / 2);
-        /* the next LED lights the moment this one starts to fade */
-        if (led < 3) CHECK(iblue_anim_intro_duty(fade_at, led + 1) == IBLUE_ANIM_MAX);
-    }
-    for (uint32_t t = IBLUE_ANIM_INTRO_MS; t < IBLUE_ANIM_INTRO_MS + 200; t += 10) {
-        for (int led = 0; led < 4; led++) CHECK(iblue_anim_intro_duty(t, led) == 0);
+        CHECK(iblue_anim_intro_duty(IBLUE_ANIM_INTRO_MS, led) == 0 && iblue_anim_intro_duty(IBLUE_ANIM_INTRO_MS + 500, led) == 0);
     }
     CHECK(iblue_anim_intro_duty(0, 4) == 0 && iblue_anim_intro_duty(0, -1) == 0);
 }

@@ -234,19 +234,6 @@ static void save_color(uint32_t idx) {
     }
 }
 
-void iblue_led_pins_off(void) {
-    for (uint32_t i = 0; i < 3; i++) {
-        gpio_config_t io = {
-            .pin_bit_mask = 1ULL << pins[i],
-            .mode = GPIO_MODE_OUTPUT,
-        };
-
-        gpio_set_level(pins[i], 1);
-        gpio_config(&io);
-        gpio_set_level(pins[i], 1);
-    }
-}
-
 void iblue_led_init(void) {
     ledc_timer_config_t timer = {
         .speed_mode = IBLUE_LED_MODE,

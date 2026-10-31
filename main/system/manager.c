@@ -818,36 +818,26 @@ void sys_mgr_cmd(uint8_t cmd) {
 }
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
-/* The first line of app_main: the power LED dark and the port LEDs off, before anything else (the file
- * system, NVS, the Bluetooth stack take their time). What the pins do before the firmware runs at all is
- * the chip's and the board's. */
-void sys_mgr_iblue_pins_off(void) {
-    iblue_led_pins_off();
-    for (uint32_t i = 0; i < sizeof(led_list); i++) {
-        gpio_config_t io = {
-            .pin_bit_mask = 1ULL << led_list[i],
-            .mode = GPIO_MODE_OUTPUT,
-        };
-
-        /* A stays lit: the chip lights it by itself while it starts, and the intro begins with A lit, so there
-         * is no dip between the two */
-        gpio_set_level(led_list[i], i == 0);
-        gpio_config(&io);
-        gpio_set_level(led_list[i], i == 0);
-    }
-}
-
 /* First thing the firmware does: take over the LEDs, so the port LEDs and the power LED do not sit in
  * whatever state the pins power up in while the file system, Bluetooth and the rest start (that took
  * seconds). The port LEDs belong to the boot animation from here on; the power LED shows its colour.
  * Assumes four ports (the Dreamcast build). Needs NVS for the saved colour. */
 void sys_mgr_iblue_early(void) {
-    int32_t ret = nvs_flash_init();
+    int32_t ret;
 
+    /* The port LEDs first (they need nothing else): B, C and D go off, A stays lit, the intro starts. */
+    iblue_port_led_init(led_list, sizeof(led_list));
+#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_ANIM
+    iblue_port_led_boot_anim((uint32_t)(esp_timer_get_time() / 1000) + CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS);
+#endif
+    /* The power LED needs its saved colour from NVS */
+    ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
         nvs_flash_init();
     }
+    iblue_led_init();
+}
     iblue_port_led_init(led_list, sizeof(led_list));
     iblue_led_init();
 #ifdef CONFIG_BLUERETRO_IBLUE_BOOT_ANIM

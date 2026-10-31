@@ -119,7 +119,12 @@ void iblue_port_led_init(const uint8_t *pins, uint32_t count) {
             .speed_mode = MODE,
             .channel = FIRST_CHANNEL + i,
             .timer_sel = TIMER,
+#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_INTRO
+            /* A is lit by the chip while it starts and the intro begins with A lit: keep it on, no dip */
+            .duty = (i == 0) ? (MAX_DUTY * CONFIG_BLUERETRO_IBLUE_LED_MAX_PCT / 100) : 0,
+#else
             .duty = 0,
+#endif
             .hpoint = 0,
         };
 

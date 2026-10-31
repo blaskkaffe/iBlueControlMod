@@ -20,9 +20,6 @@ enum {
 
 /* Take over the 3 colour pins (after sys_mgr pin init) and start the pattern task */
 void iblue_led_init(void);
-/* The very first thing at start-up: drive the three colour pins high (common anode: LED off) so the LED is
- * dark from here until iblue_led_init() sets its colour. Needs nothing else to be up. */
-void iblue_led_pins_off(void);
 /* A controller is connecting (found, not ready yet): the LED blinks until it is ready */
 void iblue_led_connecting(uint32_t on);
 /* Button feedback: active=1 while the button is held, stage 0..3 = hold stage */

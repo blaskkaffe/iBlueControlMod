@@ -838,12 +838,6 @@ void sys_mgr_iblue_early(void) {
     }
     iblue_led_init();
 }
-    iblue_port_led_init(led_list, sizeof(led_list));
-    iblue_led_init();
-#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_ANIM
-    iblue_port_led_boot_anim((uint32_t)(esp_timer_get_time() / 1000) + CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS);
-#endif
-}
 #endif
 
 void sys_mgr_init(uint32_t package) {

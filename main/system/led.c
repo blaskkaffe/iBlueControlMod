@@ -67,13 +67,7 @@ void err_led_init(uint32_t package) {
     ledc_channel_config_t ledc_channel = {
         .channel    = LEDC_CHANNEL_0,
         .duty       = hw_config.led_pulse_off_duty_cycle,
-#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
-        /* GPIO14 is a colour of the RGB LED: this channel gets no pin, so the LED is left as the chip has it
-         * until iblue_led takes over (no change of colour in between) */
-        .gpio_num   = LEDC_PIN_NO_CHANGE,
-#else
         .gpio_num   = ERR_LED_PIN,
-#endif
         .speed_mode = LEDC_HIGH_SPEED_MODE,
         .hpoint     = 0,
         .timer_sel  = LEDC_TIMER_0,
@@ -85,7 +79,11 @@ void err_led_init(uint32_t package) {
     }
 
     ledc_timer_config(&ledc_timer);
+#ifndef CONFIG_BLUERETRO_IBLUE_RGB_LED
     ledc_channel_config(&ledc_channel);
+#endif
+    /* (On the iBlueControlMod the error LED channel is not set up: GPIO14 is the green of the RGB LED and the
+     * channel would take the pin from the chip's state, changing the colour, until iblue_led takes over.) */
     ledc_fade_func_install(0);
     ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, hw_config.led_pulse_off_duty_cycle, 0);
 
